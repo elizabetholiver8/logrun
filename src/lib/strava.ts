@@ -13,7 +13,7 @@ import { env } from "./env";
  */
 
 const OAUTH_BASE = "https://www.strava.com/oauth";
-export const API_BASE = "https://www.strava.com/api/v3";
+export const API_BASE = process.env.STRAVA_API_BASE ?? "https://www.strava.com/api/v3";
 
 /** Scopes this app needs. read is required by Strava; activity:read_all includes private runs. */
 export const REQUIRED_SCOPES = ["read", "activity:read_all"] as const;
@@ -177,16 +177,44 @@ export async function getValidAccessToken(athleteId: number): Promise<string> {
   return fresh.access_token;
 }
 
+/** Parsed rate-limit state from Strava's response headers. */
+export type RateLimit = {
+  /** Requests used in the current 15-minute window. */
+  shortUsage: number;
+  /** Cap for the 15-minute window. */
+  shortLimit: number;
+  /** Requests used today. */
+  dailyUsage: number;
+  /** Cap for today. */
+  dailyLimit: number;
+};
+
 /**
- * Authenticated fetch against the Strava API. Path is relative to API_BASE,
- * e.g. "/athlete/activities?per_page=50". Throws StravaApiError on non-2xx,
- * carrying the rate-limit headers so callers can back off.
+ * Parse "X-RateLimit-Limit: 200,2000" style headers. Strava sends a separate
+ * read-only pair (X-ReadRateLimit-*) which is the one that applies to GETs;
+ * fall back to the overall pair when the read pair is absent. Returns null
+ * when neither is present, which happens on some error responses.
  */
-export async function stravaFetch<T>(
+export function parseRateLimit(headers: Headers): RateLimit | null {
+  const limit = headers.get("x-readratelimit-limit") ?? headers.get("x-ratelimit-limit");
+  const usage = headers.get("x-readratelimit-usage") ?? headers.get("x-ratelimit-usage");
+  if (!limit || !usage) return null;
+  const [shortLimit, dailyLimit] = limit.split(",").map(Number);
+  const [shortUsage, dailyUsage] = usage.split(",").map(Number);
+  if ([shortLimit, dailyLimit, shortUsage, dailyUsage].some(Number.isNaN)) return null;
+  return { shortUsage, shortLimit, dailyUsage, dailyLimit };
+}
+
+/**
+ * Authenticated fetch against the Strava API, returning the parsed body and
+ * the rate-limit state. Path is relative to API_BASE, e.g.
+ * "/athlete/activities?per_page=50". Throws StravaApiError on non-2xx.
+ */
+export async function stravaFetchWithRateLimit<T>(
   athleteId: number,
   path: string,
   init: RequestInit = {},
-): Promise<T> {
+): Promise<{ data: T; rateLimit: RateLimit | null }> {
   const token = await getValidAccessToken(athleteId);
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -199,5 +227,14 @@ export async function stravaFetch<T>(
       usage: res.headers.get("x-ratelimit-usage"),
     });
   }
-  return (await res.json()) as T;
+  return { data: (await res.json()) as T, rateLimit: parseRateLimit(res.headers) };
+}
+
+/** Authenticated fetch that returns only the parsed body. */
+export async function stravaFetch<T>(
+  athleteId: number,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  return (await stravaFetchWithRateLimit<T>(athleteId, path, init)).data;
 }

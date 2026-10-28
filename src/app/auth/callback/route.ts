@@ -7,6 +7,7 @@ import {
   storeTokens,
   upsertAthlete,
 } from "../../../lib/strava";
+import { syncActivities } from "../../../lib/sync";
 
 /**
  * GET /auth/callback
@@ -40,6 +41,15 @@ export async function GET(req: Request) {
   const tokens = await exchangeCode(code);
   await upsertAthlete(tokens.athlete);
   await storeTokens(tokens.athlete.id, tokens, scope);
+
+  // Pull the most recent page so the dashboard has data on first load. One
+  // page keeps this within a serverless time limit; the Sync button and
+  // webhooks fill in the rest. A sync failure must not block login.
+  try {
+    await syncActivities(tokens.athlete.id, { maxPages: 1 });
+  } catch (err) {
+    console.error("initial sync failed", err);
+  }
 
   const res = NextResponse.redirect(`${origin}/`);
   res.cookies.set(OAUTH_STATE_COOKIE, "", { path: OAUTH_STATE_COOKIE_PATH, maxAge: 0 });

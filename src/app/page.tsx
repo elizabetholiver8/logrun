@@ -1,8 +1,9 @@
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import Image from "next/image";
 import { Suspense } from "react";
+import { SyncButton } from "../components/sync-button";
 import { db } from "../db";
-import { athletes } from "../db/schema";
+import { activities, athletes } from "../db/schema";
 import { getSession } from "../lib/session";
 
 export default function Home() {
@@ -40,18 +41,20 @@ async function AccountStatus() {
     );
   }
 
-  const athlete = await db.query.athletes.findFirst({
-    where: eq(athletes.id, session.athleteId),
-  });
+  const [athlete, [{ runs }]] = await Promise.all([
+    db.query.athletes.findFirst({ where: eq(athletes.id, session.athleteId) }),
+    db.select({ runs: count() }).from(activities).where(eq(activities.athleteId, session.athleteId)),
+  ]);
+
+  const name = athlete ? `${athlete.firstName ?? ""} ${athlete.lastName ?? ""}`.trim() : String(session.athleteId);
 
   return (
     <div className="flex flex-col gap-4">
       <p>
-        Signed in as{" "}
-        <strong>
-          {athlete ? `${athlete.firstName ?? ""} ${athlete.lastName ?? ""}`.trim() : session.athleteId}
-        </strong>
+        Signed in as <strong>{name}</strong>. {runs} runs stored
+        {athlete?.backfillCompletedAt ? "." : ", history not yet complete."}
       </p>
+      <SyncButton backfillComplete={Boolean(athlete?.backfillCompletedAt)} />
       <form action="/auth/logout" method="post">
         <button
           type="submit"

@@ -33,6 +33,16 @@ export const athletes = pgTable("athletes", {
     .notNull(),
   /** Set when Strava sends a deauthorize webhook event. */
   deauthorizedAt: timestamp("deauthorized_at", { withTimezone: true }),
+  /**
+   * Backfill progress. Start time of the oldest activity fetched so far; the
+   * next backfill page asks Strava for activities before this instant. Null
+   * until the first page has been fetched.
+   */
+  backfillCursor: timestamp("backfill_cursor", { withTimezone: true }),
+  /** Set once a backfill page comes back empty, meaning history is complete. */
+  backfillCompletedAt: timestamp("backfill_completed_at", { withTimezone: true }),
+  /** Start time of the newest activity ever fetched; incremental sync asks for activities after it. */
+  newestActivityAt: timestamp("newest_activity_at", { withTimezone: true }),
 });
 
 /**
