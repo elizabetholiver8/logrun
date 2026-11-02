@@ -51,7 +51,7 @@ export async function GET(req: Request) {
     console.error("initial sync failed", err);
   }
 
-  const res = NextResponse.redirect(`${origin}/`);
+  const res = NextResponse.redirect(`${origin}/dashboard`);
   res.cookies.set(OAUTH_STATE_COOKIE, "", { path: OAUTH_STATE_COOKIE_PATH, maxAge: 0 });
   setSessionCookie(res, tokens.athlete.id);
   return res;

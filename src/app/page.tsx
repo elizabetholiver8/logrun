@@ -1,9 +1,6 @@
-import { count, eq } from "drizzle-orm";
 import Image from "next/image";
+import Link from "next/link";
 import { Suspense } from "react";
-import { SyncButton } from "../components/sync-button";
-import { db } from "../db";
-import { activities, athletes } from "../db/schema";
 import { getSession } from "../lib/session";
 
 export default function Home() {
@@ -14,55 +11,25 @@ export default function Home() {
         Run tracking and training plans built on your Strava history.
       </p>
       <Suspense fallback={<p className="text-neutral-400">Checking session…</p>}>
-        <AccountStatus />
+        <Entry />
       </Suspense>
     </main>
   );
 }
 
-/**
- * Reads the session cookie, so it must sit inside a Suspense boundary: the
- * rest of the page prerenders statically and this part streams in.
- */
-async function AccountStatus() {
+/** Reads the session cookie, so it sits inside Suspense and streams in. */
+async function Entry() {
   const session = await getSession();
-
-  if (!session) {
+  if (session) {
     return (
-      <a href="/auth/login" aria-label="Connect with Strava">
-        <Image
-          src="/btn_strava_connect_with_orange.svg"
-          alt="Connect with Strava"
-          width={193}
-          height={48}
-          priority
-        />
-      </a>
+      <Link href="/dashboard" className="w-fit rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700">
+        Open dashboard
+      </Link>
     );
   }
-
-  const [athlete, [{ runs }]] = await Promise.all([
-    db.query.athletes.findFirst({ where: eq(athletes.id, session.athleteId) }),
-    db.select({ runs: count() }).from(activities).where(eq(activities.athleteId, session.athleteId)),
-  ]);
-
-  const name = athlete ? `${athlete.firstName ?? ""} ${athlete.lastName ?? ""}`.trim() : String(session.athleteId);
-
   return (
-    <div className="flex flex-col gap-4">
-      <p>
-        Signed in as <strong>{name}</strong>. {runs} runs stored
-        {athlete?.backfillCompletedAt ? "." : ", history not yet complete."}
-      </p>
-      <SyncButton backfillComplete={Boolean(athlete?.backfillCompletedAt)} />
-      <form action="/auth/logout" method="post">
-        <button
-          type="submit"
-          className="rounded border border-neutral-300 px-3 py-1 text-sm hover:bg-neutral-100"
-        >
-          Log out
-        </button>
-      </form>
-    </div>
+    <a href="/auth/login" aria-label="Connect with Strava" className="w-fit">
+      <Image src="/btn_strava_connect_with_orange.svg" alt="Connect with Strava" width={193} height={48} priority />
+    </a>
   );
 }
