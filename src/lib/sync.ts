@@ -110,7 +110,7 @@ export function pageBounds(page: StravaSummaryActivity[]): { oldest: Date; newes
   return { oldest: new Date(oldest), newest: new Date(newest) };
 }
 
-async function upsertRuns(page: StravaSummaryActivity[], athleteId: number): Promise<number> {
+export async function upsertRuns(page: StravaSummaryActivity[], athleteId: number): Promise<number> {
   const rows = page.filter((a) => RUN_SPORT_TYPES.has(a.sport_type)).map((a) => toActivityRow(a, athleteId));
   if (rows.length === 0) return 0;
   await db

@@ -14,3 +14,14 @@ Developer tooling, not shipped.
   STRAVA_CLIENT_ID=x STRAVA_CLIENT_SECRET=x STRAVA_WEBHOOK_VERIFY_TOKEN=x SESSION_SECRET=x \
   npx tsx scripts/sync-integration.ts
   ```
+
+- `strava-webhook.ts`: view, create or delete this app's Strava webhook
+  subscription using the credentials in `.env.local`. The app must already be
+  deployed with the webhook GET handler before `create`, because Strava calls
+  it during registration.
+
+  ```
+  npx tsx scripts/strava-webhook.ts view
+  npx tsx scripts/strava-webhook.ts create https://your-host/api/webhooks/strava
+  npx tsx scripts/strava-webhook.ts delete <subscription_id>
+  ```

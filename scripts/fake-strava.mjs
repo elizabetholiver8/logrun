@@ -21,6 +21,28 @@ http.createServer((req, res) => {
     all.unshift({ ...all[0], id: 2_000_000 + all.length, name: "New run", sport_type: "Run", start_date: new Date(t).toISOString(), start_date_local: new Date(t).toISOString() });
     res.end("ok"); return;
   }
+  const single = u.pathname.match(/^\/api\/v3\/activities\/(\d+)$/);
+  if (single) {
+    const a = all.find(x => x.id === Number(single[1]));
+    res.setHeader("content-type", "application/json");
+    if (!a) { res.statusCode = 404; res.end('{"message":"Record Not Found"}'); return; }
+    res.end(JSON.stringify(a)); return;
+  }
+  if (u.pathname === "/_rename") {
+    const a = all.find(x => x.id === Number(u.searchParams.get("id")));
+    if (a) a.name = u.searchParams.get("name") ?? a.name;
+    res.end("ok"); return;
+  }
+  if (u.pathname === "/_retype") {
+    const a = all.find(x => x.id === Number(u.searchParams.get("id")));
+    if (a) a.sport_type = u.searchParams.get("type") ?? a.sport_type;
+    res.end("ok"); return;
+  }
+  if (u.pathname === "/_remove") {
+    const i = all.findIndex(x => x.id === Number(u.searchParams.get("id")));
+    if (i >= 0) all.splice(i, 1);
+    res.end("ok"); return;
+  }
   if (u.pathname === "/api/v3/athlete/activities") {
     const per = Number(u.searchParams.get("per_page") ?? 30);
     const before = u.searchParams.get("before"); const after = u.searchParams.get("after");
