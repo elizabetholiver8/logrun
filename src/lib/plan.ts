@@ -13,7 +13,9 @@ import { localDateKey, weekStart } from "./units";
  *  - the last TAPER_WEEKS before the race taper toward TAPER_FLOOR
  *  - one long run per week at LONG_RUN_SHARE of weekly volume, capped so it
  *    never exceeds the goal distance for short goals
- *  - one quality session per week, alternating tempo and intervals
+ *  - one quality session per week, alternating tempo and intervals, kept
+ *    off the days next to the long run unless the athlete overrides it
+ *  - run days are the athlete's own picks, or spread evenly when not given
  *  - lifting goes on the requested weekdays, never the day before the long
  *    run; a conflicting pick is moved and reported
  */
@@ -56,10 +58,19 @@ export type PlanInput = {
   raceDate: string;
   /** Local calendar date the plan starts, normally today. */
   startDate: string;
+  /** How many days to run when `runDays` is not given; the generator spreads them. */
   daysPerWeek: 3 | 4 | 5 | 6;
+  /** Exact weekdays to run. Must include the long run day. Overrides daysPerWeek. */
+  runDays?: Weekday[];
   liftDays: Weekday[];
   /** Weekday for the long run. Defaults to Sunday. */
   longRunDay?: Weekday;
+  /**
+   * Weekday for the quality session. Defaults to the first run day that is
+   * not the long run or the day before it. A pick next to the long run is
+   * honored but reported as a warning.
+   */
+  qualityDay?: Weekday;
   baseline: Baseline;
 };
 
@@ -192,6 +203,8 @@ export function layoutWeek(
   opts: {
     daysPerWeek: number;
     longRunDay: Weekday;
+    runDays?: Weekday[];
+    qualityDay?: Weekday;
     liftDays: Weekday[];
     qualityKind: "tempo" | "intervals";
     goalM: number;
@@ -200,8 +213,8 @@ export function layoutWeek(
 ): PlannedWorkout[] {
   const days: PlannedWorkout[] = [];
   const longM = Math.min(round100(targetM * LONG_RUN_SHARE), Math.max(opts.goalM, round100(targetM * LONG_RUN_SHARE * 0.8)));
-  const runDays = chooseRunDays(opts.daysPerWeek, opts.longRunDay);
-  const qualityDay = runDays.find((d) => d !== opts.longRunDay && d !== (opts.longRunDay + 6) % 7) ?? runDays[0];
+  const runDays = opts.runDays ?? chooseRunDays(opts.daysPerWeek, opts.longRunDay);
+  const qualityDay = opts.qualityDay ?? defaultQualityDay(runDays, opts.longRunDay);
   const easyDays = runDays.filter((d) => d !== opts.longRunDay && d !== qualityDay);
   const qualityM = round100(targetM * 0.2);
   const easyEach = easyDays.length > 0 ? round100(Math.max(0, targetM - longM - qualityM) / easyDays.length) : 0;
@@ -242,6 +255,27 @@ export function layoutWeek(
     days.push(w);
   }
   return days;
+}
+
+/**
+ * The quality session goes on the first run day that is neither the long
+ * run nor the day before it, so the two hard efforts are separated.
+ */
+export function defaultQualityDay(runDays: Weekday[], longRunDay: Weekday): Weekday {
+  const dayBefore = (longRunDay + 6) % 7;
+  const dayAfter = (longRunDay + 1) % 7;
+  return (
+    runDays.find((d) => d !== longRunDay && d !== dayBefore && d !== dayAfter) ??
+    runDays.find((d) => d !== longRunDay && d !== dayBefore) ??
+    runDays.find((d) => d !== longRunDay) ??
+    runDays[0]
+  );
+}
+
+/** True when two weekdays are consecutive, wrapping around the week. */
+export function adjacentWeekdays(a: Weekday, b: Weekday): boolean {
+  const diff = Math.abs(a - b);
+  return diff === 1 || diff === 6;
 }
 
 /** Spread run days across the week, long run day always included. */
@@ -288,8 +322,19 @@ export function generatePlan(input: PlanInput): GeneratedPlan {
   if (race <= start) throw new Error("Race date must be after the start date");
 
   const longRunDay = input.longRunDay ?? 0;
-  const runDays = chooseRunDays(input.daysPerWeek, longRunDay);
-  const qualityDay = runDays.find((d) => d !== longRunDay && d !== (longRunDay + 6) % 7) ?? runDays[0];
+  const runDays = input.runDays
+    ? [...new Set(input.runDays)].sort((a, b) => a - b)
+    : chooseRunDays(input.daysPerWeek, longRunDay);
+  if (!runDays.includes(longRunDay)) throw new Error("Run days must include the long run day");
+  const qualityDay = input.qualityDay ?? defaultQualityDay(runDays, longRunDay);
+  if (!runDays.includes(qualityDay) || qualityDay === longRunDay) {
+    throw new Error("Quality day must be a run day other than the long run day");
+  }
+  if (input.qualityDay !== undefined && adjacentWeekdays(qualityDay, longRunDay)) {
+    warnings.push(
+      `${WEEKDAY_NAMES[qualityDay]} quality sessions sit next to the ${WEEKDAY_NAMES[longRunDay]} long run, so there is no easy day between your two hardest efforts.`,
+    );
+  }
   const lifts = resolveLiftDays(input.liftDays, longRunDay, [qualityDay]);
   if (lifts.warning) warnings.push(lifts.warning);
 
@@ -321,7 +366,9 @@ export function generatePlan(input: PlanInput): GeneratedPlan {
   const weeks: PlanWeek[] = targets.map((t, i) => {
     const ws = addDays(firstWeek, 7 * i);
     const workouts = layoutWeek(ws, t.targetM, t.phase, {
-      daysPerWeek: input.daysPerWeek,
+      daysPerWeek: runDays.length,
+      runDays,
+      qualityDay,
       longRunDay,
       liftDays: lifts.liftDays,
       qualityKind: i % 2 === 0 ? "tempo" : "intervals",

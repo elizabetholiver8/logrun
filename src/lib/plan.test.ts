@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BASELINE_WEEKS, CUTBACK_FACTOR, LONG_RUN_SHARE, RAMP_MAX, TAPER_FLOOR,
-  chooseRunDays, computeBaseline, generatePlan, layoutWeek, matchWorkout,
+  adjacentWeekdays, chooseRunDays, computeBaseline, defaultQualityDay, generatePlan, layoutWeek, matchWorkout,
   peakVolumeM, resolveLiftDays, weeklyTargets, type Baseline,
 } from "./plan";
 
@@ -102,6 +102,19 @@ describe("chooseRunDays and lifts", () => {
   });
 });
 
+describe("defaultQualityDay and adjacency", () => {
+  it("picks the first run day with a buffer on both sides of the long run", () => {
+    expect(defaultQualityDay([0, 2, 4, 5], 0)).toBe(2);
+    expect(defaultQualityDay([1, 3, 4, 6], 6)).toBe(1);
+    expect(defaultQualityDay([0, 1, 6], 0)).toBe(1); // nothing non-adjacent; day after beats day before
+  });
+  it("adjacentWeekdays wraps around the week", () => {
+    expect(adjacentWeekdays(6, 0)).toBe(true);
+    expect(adjacentWeekdays(0, 1)).toBe(true);
+    expect(adjacentWeekdays(2, 4)).toBe(false);
+  });
+});
+
 describe("layoutWeek", () => {
   const monday = new Date(2026, 10, 2);
   const week = layoutWeek(monday, 40_000, "build", { daysPerWeek: 4, longRunDay: 0, liftDays: [1, 3], qualityKind: "tempo", goalM: 21097.5 });
@@ -176,6 +189,24 @@ describe("generatePlan", () => {
   });
   it("rejects a race date that is not after the start", () => {
     expect(() => generatePlan({ ...input, raceDate: "2026-11-02" })).toThrow();
+  });
+  it("runs only on the chosen days when runDays is given", () => {
+    const p = generatePlan({ ...input, runDays: [0, 1, 3, 5], longRunDay: 0 });
+    const buildWeek = p.weeks[1].workouts;
+    const runDows = buildWeek.filter((w) => w.targetDistanceM !== null).map((w) => new Date(`${w.date}T00:00:00`).getDay());
+    expect(runDows.sort()).toEqual([0, 1, 3, 5]);
+  });
+  it("honors a quality day override and warns when it is next to the long run", () => {
+    const p = generatePlan({ ...input, runDays: [0, 1, 3, 5], longRunDay: 0, qualityDay: 1 });
+    const monday = p.weeks[1].workouts[0];
+    expect(["tempo", "intervals"]).toContain(monday.kind);
+    expect(p.warnings.some((w) => /next to the Sunday long run/.test(w))).toBe(true);
+    const quiet = generatePlan({ ...input, runDays: [0, 1, 3, 5], longRunDay: 0, qualityDay: 3 });
+    expect(quiet.warnings).toEqual([]);
+  });
+  it("rejects run days that exclude the long run or a quality day that is the long run", () => {
+    expect(() => generatePlan({ ...input, runDays: [1, 3, 5], longRunDay: 0 })).toThrow();
+    expect(() => generatePlan({ ...input, runDays: [0, 1, 3], longRunDay: 0, qualityDay: 0 })).toThrow();
   });
 });
 

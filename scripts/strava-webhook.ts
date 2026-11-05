@@ -10,9 +10,13 @@
  * from .env.local. On create, Strava calls the callback URL's GET handler
  * before answering, so the app must already be deployed with that handler.
  */
-import { loadEnvConfig } from "@next/env";
+import * as nextEnvModule from "@next/env";
 
-loadEnvConfig(process.cwd());
+// @next/env is a bundled CommonJS module. Loaded as ESM its exports sit under
+// `default`; loaded as CommonJS they are on the namespace. Handle both so the
+// script runs whether or not package.json says "type": "module".
+const nextEnv = "loadEnvConfig" in nextEnvModule ? nextEnvModule : (nextEnvModule as unknown as { default: typeof nextEnvModule }).default;
+nextEnv.loadEnvConfig(process.cwd());
 
 const URL_BASE = "https://www.strava.com/api/v3/push_subscriptions";
 const clientId = process.env.STRAVA_CLIENT_ID;

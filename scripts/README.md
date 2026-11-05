@@ -25,3 +25,20 @@ Developer tooling, not shipped.
   npx tsx scripts/strava-webhook.ts create https://your-host/api/webhooks/strava
   npx tsx scripts/strava-webhook.ts delete <subscription_id>
   ```
+
+- `demo-export.ts`: writes one athlete's runs to `demo-export.json` with only
+  distances, times, elevation, start instants, heart rate and the route
+  polyline. No names or Strava IDs. The file is git-ignored.
+
+  ```
+  npx tsx scripts/demo-export.ts <athleteId>
+  ```
+
+- `demo-seed.ts`: wipes and reseeds the demo athlete from that file, dates
+  shifted so the newest run is today, generic names, polylines kept on the
+  most recent runs only, plus a half-marathon plan that started three weeks
+  ago. Safe to run again. Uses `DATABASE_URL` from `.env.local`.
+
+  ```
+  npx tsx scripts/demo-seed.ts --file demo-export.json --polylines 20 --tz America/New_York
+  ```

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { DemoBanner } from "../../../components/demo-banner";
+import { DemoPlanExplainer } from "../../../components/demo-plan-explainer";
 import { PlanForm } from "../../../components/plan-form";
 import { loadBaseline } from "../../../lib/plan-data";
-import { getSession } from "../../../lib/session";
+import { getSession, isDemoSession } from "../../../lib/session";
 import { formatDistance, localDateKey, unitLabel, unitsFromPreference } from "../../../lib/units";
 import { db } from "../../../db";
 import { athletes } from "../../../db/schema";
@@ -34,16 +36,19 @@ async function Content() {
   ]);
   const units = unitsFromPreference(athlete?.measurementPreference);
   const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  const demo = isDemoSession(session);
 
   return (
     <div className="flex flex-col gap-6">
+      {demo && <DemoBanner />}
       <p className="max-w-md text-sm text-neutral-600">
         Your starting point comes from synced runs: averaging{" "}
         <strong>{formatDistance(baseline.weeklyM, units)} {unitLabel(units)}</strong> per week over the last four
         full weeks, longest run <strong>{formatDistance(baseline.longestM, units)} {unitLabel(units)}</strong>.
         {baseline.weeksOfData < 4 && " Fewer than four weeks of data were found, so the plan will start conservatively."}
       </p>
-      <PlanForm minDate={localDateKey(tomorrow)} />
+      {demo && <DemoPlanExplainer />}
+      <PlanForm minDate={localDateKey(tomorrow)} today={localDateKey(today)} units={units} demo={demo} />
     </div>
   );
 }

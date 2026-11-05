@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
+import { DemoBanner } from "../../../components/demo-banner";
 import { RunMapLoader } from "../../../components/run-map-loader";
 import { StatTile } from "../../../components/stat-tile";
 import { loadRun } from "../../../lib/dashboard-data";
-import { getSession } from "../../../lib/session";
+import { getSession, isDemoSession } from "../../../lib/session";
 import { db } from "../../../db";
 import { athletes } from "../../../db/schema";
 import { eq } from "drizzle-orm";
@@ -49,6 +50,7 @@ async function Run({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
+      {isDemoSession(session) && <DemoBanner />}
       <div>
         <h1 className="text-xl font-semibold">{run.name}</h1>
         <p className="text-sm text-neutral-500">{when}</p>

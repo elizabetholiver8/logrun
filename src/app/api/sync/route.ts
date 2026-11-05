@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
-import { getSession } from "../../../lib/session";
+import { getSession, isDemoSession } from "../../../lib/session";
 import { StravaApiError } from "../../../lib/strava";
 import { syncActivities } from "../../../lib/sync";
 
 /**
  * POST /api/sync
  * Runs one bounded sync pass for the signed-in athlete and reports progress.
- * The client calls it again while `done` is false.
+ * The client calls it again while `done` is false. Refused for the demo
+ * athlete, who has no Strava tokens and whose data is fixed.
  */
 export async function POST() {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "not_signed_in" }, { status: 401 });
+  }
+  if (isDemoSession(session)) {
+    return NextResponse.json({ error: "demo_read_only" }, { status: 403 });
   }
 
   try {

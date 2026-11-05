@@ -2,12 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { AccountControls } from "../../components/account-controls";
+import { DemoBanner } from "../../components/demo-banner";
 import { PlanStrip } from "../../components/plan-strip";
 import { StatTile } from "../../components/stat-tile";
 import { WeeklyCharts } from "../../components/weekly-charts";
 import { loadDashboard } from "../../lib/dashboard-data";
 import { loadPlan } from "../../lib/plan-data";
-import { getSession } from "../../lib/session";
+import { getSession, isDemoSession } from "../../lib/session";
 import {
   formatDistance, formatDuration, formatHours, formatPace, localDateKey, paceSecondsPer,
   unitLabel, unitsFromPreference,
@@ -37,10 +38,12 @@ async function Dashboard() {
   const units = unitsFromPreference(athlete.measurementPreference);
   const u = unitLabel(units);
   const name = `${athlete.firstName ?? ""} ${athlete.lastName ?? ""}`.trim() || String(athlete.id);
+  const demo = isDemoSession(session);
 
   return (
     <>
-      <AccountControls name={name} backfillComplete={Boolean(athlete.backfillCompletedAt)} />
+      {demo && <DemoBanner />}
+      <AccountControls name={name} backfillComplete={Boolean(athlete.backfillCompletedAt)} demo={demo} />
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatTile label="Runs, 30 days" value={String(last30.runs)} />
@@ -56,7 +59,7 @@ async function Dashboard() {
       <section>
         <h2 className="mb-2 text-sm font-medium text-neutral-500">Recent runs</h2>
         {recent.length === 0 ? (
-          <p className="text-neutral-500">No runs yet. Use Sync history to pull your Strava activities.</p>
+          <p className="text-neutral-500">{demo ? "The demo has not been seeded yet." : "No runs yet. Use Sync history to pull your Strava activities."}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

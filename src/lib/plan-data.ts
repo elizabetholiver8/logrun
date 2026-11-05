@@ -23,9 +23,12 @@ export type CreatePlanArgs = {
   athleteId: number;
   goal: GoalDistance;
   raceDate: string;
-  daysPerWeek: PlanInput["daysPerWeek"];
+  /** Weekdays to run, long run day included. 3 to 6 days. */
+  runDays: Weekday[];
+  longRunDay: Weekday;
+  /** Omit to let the generator pick. */
+  qualityDay?: Weekday;
   liftDays: Weekday[];
-  longRunDay?: Weekday;
   today?: Date;
 };
 
@@ -40,9 +43,11 @@ export async function createPlan(args: CreatePlanArgs): Promise<{ planId: number
     goal: args.goal,
     raceDate: args.raceDate,
     startDate: localDateKey(today),
-    daysPerWeek: args.daysPerWeek,
-    liftDays: args.liftDays,
+    daysPerWeek: args.runDays.length as PlanInput["daysPerWeek"],
+    runDays: args.runDays,
     longRunDay: args.longRunDay,
+    qualityDay: args.qualityDay,
+    liftDays: args.liftDays,
     baseline,
   });
 
@@ -54,8 +59,11 @@ export async function createPlan(args: CreatePlanArgs): Promise<{ planId: number
       athleteId: args.athleteId,
       goalDistanceM: GOAL_DISTANCE_M[args.goal],
       raceDate: args.raceDate,
-      daysPerWeek: args.daysPerWeek,
+      daysPerWeek: args.runDays.length,
       liftDays: args.liftDays,
+      runDays: args.runDays,
+      longRunDay: args.longRunDay,
+      qualityDay: args.qualityDay ?? null,
     })
     .returning();
 
@@ -101,34 +109,15 @@ export function goalFromDistance(m: number): GoalDistance {
   return best;
 }
 
+type WorkoutLike = Pick<PlanDay, "id" | "date" | "kind" | "targetDistanceM" | "notes">;
+type RunLike = { id: number; distanceM: number; startDateLocal: Date };
+
 /**
- * Load the athlete's plan with completion computed against synced runs.
- * Completion is derived at read time rather than stored, so a run synced
- * after the fact, or a deleted one, is reflected without a reconciliation job.
+ * Group workouts into weeks and mark completion against runs. Shared by the
+ * saved plan and the demo preview so the two can never disagree about what
+ * counts as done.
  */
-export async function loadPlan(athleteId: number): Promise<PlanView | null> {
-  const plan = await db.query.trainingPlans.findFirst({ where: eq(trainingPlans.athleteId, athleteId) });
-  if (!plan) return null;
-
-  const workouts = await db
-    .select()
-    .from(planWorkouts)
-    .where(eq(planWorkouts.planId, plan.id))
-    .orderBy(asc(planWorkouts.date));
-  if (workouts.length === 0) return { plan, goal: goalFromDistance(plan.goalDistanceM), weeks: [] };
-
-  const first = workouts[0].date;
-  const last = workouts[workouts.length - 1].date;
-  const runs = await db
-    .select({ id: activities.id, distanceM: activities.distanceM, startDateLocal: activities.startDateLocal })
-    .from(activities)
-    .where(
-      and(
-        eq(activities.athleteId, athleteId),
-        gte(activities.startDateLocal, new Date(`${first}T00:00:00`)),
-        lte(activities.startDateLocal, new Date(`${last}T23:59:59`)),
-      ),
-    );
+export function buildWeeks(workouts: WorkoutLike[], runs: RunLike[]): PlanView["weeks"] {
   const runsByDay = new Map<string, { id: number; distanceM: number }[]>();
   for (const r of runs) {
     const key = localDateKey(r.startDateLocal);
@@ -160,7 +149,81 @@ export async function loadPlan(athleteId: number): Promise<PlanView | null> {
       actualM: days.reduce((a, d) => a + d.actualM, 0),
     });
   }
-  return { plan, goal: goalFromDistance(plan.goalDistanceM), weeks };
+  return weeks;
+}
+
+async function loadRunsBetween(athleteId: number, first: string, last: string): Promise<RunLike[]> {
+  return db
+    .select({ id: activities.id, distanceM: activities.distanceM, startDateLocal: activities.startDateLocal })
+    .from(activities)
+    .where(
+      and(
+        eq(activities.athleteId, athleteId),
+        gte(activities.startDateLocal, new Date(`${first}T00:00:00`)),
+        lte(activities.startDateLocal, new Date(`${last}T23:59:59`)),
+      ),
+    );
+}
+
+/**
+ * Load the athlete's plan with completion computed against synced runs.
+ * Completion is derived at read time rather than stored, so a run synced
+ * after the fact, or a deleted one, is reflected without a reconciliation job.
+ */
+export async function loadPlan(athleteId: number): Promise<PlanView | null> {
+  const plan = await db.query.trainingPlans.findFirst({ where: eq(trainingPlans.athleteId, athleteId) });
+  if (!plan) return null;
+
+  const workouts = await db
+    .select()
+    .from(planWorkouts)
+    .where(eq(planWorkouts.planId, plan.id))
+    .orderBy(asc(planWorkouts.date));
+  if (workouts.length === 0) return { plan, goal: goalFromDistance(plan.goalDistanceM), weeks: [] };
+
+  const runs = await loadRunsBetween(athleteId, workouts[0].date, workouts[workouts.length - 1].date);
+  return { plan, goal: goalFromDistance(plan.goalDistanceM), weeks: buildWeeks(workouts, runs) };
+}
+
+/**
+ * Generate a plan and match it against the athlete's runs without storing
+ * anything. Used by the demo, where one shared athlete means a saved plan
+ * would be overwritten by the next visitor. Same inputs and same generator
+ * as createPlan; only the persistence step is missing.
+ */
+export async function previewPlan(args: CreatePlanArgs): Promise<{ view: PlanView; warnings: string[] }> {
+  const today = args.today ?? new Date();
+  const baseline = await loadBaseline(args.athleteId, today);
+  const plan = generatePlan({
+    goal: args.goal,
+    raceDate: args.raceDate,
+    startDate: localDateKey(today),
+    daysPerWeek: args.runDays.length as PlanInput["daysPerWeek"],
+    runDays: args.runDays,
+    longRunDay: args.longRunDay,
+    qualityDay: args.qualityDay,
+    liftDays: args.liftDays,
+    baseline,
+  });
+  const workouts: WorkoutLike[] = plan.weeks.flatMap((w) => w.workouts).map((d, i) => ({ id: i + 1, ...d }));
+  const runs = workouts.length ? await loadRunsBetween(args.athleteId, workouts[0].date, workouts[workouts.length - 1].date) : [];
+  const view: PlanView = {
+    plan: {
+      id: 0,
+      athleteId: args.athleteId,
+      goalDistanceM: GOAL_DISTANCE_M[args.goal],
+      raceDate: args.raceDate,
+      daysPerWeek: args.runDays.length,
+      liftDays: args.liftDays,
+      runDays: args.runDays,
+      longRunDay: args.longRunDay,
+      qualityDay: args.qualityDay ?? null,
+      createdAt: today,
+    },
+    goal: args.goal,
+    weeks: buildWeeks(workouts, runs),
+  };
+  return { view, warnings: plan.warnings };
 }
 
 export async function deletePlan(athleteId: number): Promise<void> {

@@ -128,6 +128,11 @@ export const trainingPlans = pgTable("training_plans", {
   daysPerWeek: integer("days_per_week").notNull(),
   /** 0 = Sunday through 6 = Saturday. */
   liftDays: jsonb("lift_days").$type<number[]>().notNull(),
+  /** The athlete's chosen run weekdays; null for plans made before this was a choice. */
+  runDays: jsonb("run_days").$type<number[]>(),
+  longRunDay: integer("long_run_day"),
+  /** Null means the generator picked the quality day. */
+  qualityDay: integer("quality_day"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

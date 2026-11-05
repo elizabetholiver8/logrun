@@ -33,7 +33,10 @@ export function PlanStrip({ view, units, today }: { view: PlanView | null; units
               >
                 <div className="text-neutral-500">{DOW[i]}</div>
                 <div className="font-medium">{LABEL[d.kind === "lift" ? "rest" : d.kind]}{d.completed ? " ✓" : ""}</div>
-                <div className="tabular-nums text-neutral-600">{has ? `${formatDistance(d.targetDistanceM!, units)} ${unitLabel(units)}` : ""}</div>
+                <div className="tabular-nums text-neutral-600">
+                  {has ? `${formatDistance(d.targetDistanceM!, units)} ${unitLabel(units)}` : ""}
+                  {(d.kind === "lift" || d.notes?.includes("Lift")) && <span className="ml-1 text-[10px] uppercase tracking-wide opacity-70">lift</span>}
+                </div>
               </div>
             );
           })}

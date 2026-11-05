@@ -2,11 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { eq } from "drizzle-orm";
+import { DemoBanner } from "../../components/demo-banner";
 import { PlanCalendar } from "../../components/plan-calendar";
 import { db } from "../../db";
 import { athletes } from "../../db/schema";
 import { loadPlan } from "../../lib/plan-data";
-import { getSession } from "../../lib/session";
+import { getSession, isDemoSession } from "../../lib/session";
 import { formatDistance, localDateKey, unitLabel, unitsFromPreference } from "../../lib/units";
 import { deletePlanAction } from "./actions";
 
@@ -34,14 +35,17 @@ async function Content() {
     db.query.athletes.findFirst({ where: eq(athletes.id, session.athleteId) }),
   ]);
   if (!view) redirect("/plan/new");
+  const demo = isDemoSession(session);
 
   const units = unitsFromPreference(athlete?.measurementPreference);
   const today = localDateKey(new Date());
   const peak = Math.max(...view.weeks.map((w) => w.targetM));
   const weeksLeft = view.weeks.filter((w) => w.days[6].date >= today).length;
 
+  const disabledClass = "rounded border border-neutral-300 px-3 py-1 opacity-50";
   return (
     <>
+      {demo && <DemoBanner />}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">{GOAL_LABEL[view.goal]} plan</h1>
@@ -49,12 +53,19 @@ async function Content() {
             Race {formatLong(view.plan.raceDate)}. {view.weeks.length} weeks, {weeksLeft} to go. Peak week {formatDistance(peak, units)} {unitLabel(units)}.
           </p>
         </div>
-        <div className="flex gap-3 text-sm">
-          <Link href="/plan/new" className="rounded border border-neutral-300 px-3 py-1 hover:bg-neutral-100">Rebuild</Link>
-          <form action={deletePlanAction}>
-            <button type="submit" className="rounded border border-neutral-300 px-3 py-1 text-neutral-600 hover:bg-neutral-100">Delete plan</button>
-          </form>
-        </div>
+        {demo ? (
+          <div className="flex gap-3 text-sm">
+            <Link href="/plan/new" className="rounded border border-neutral-300 px-3 py-1 hover:bg-neutral-100">Try the plan builder</Link>
+            <span className={disabledClass} title="Deleting is off in the demo">Delete plan</span>
+          </div>
+        ) : (
+          <div className="flex gap-3 text-sm">
+            <Link href="/plan/new" className="rounded border border-neutral-300 px-3 py-1 hover:bg-neutral-100">Rebuild</Link>
+            <form action={deletePlanAction}>
+              <button type="submit" className="rounded border border-neutral-300 px-3 py-1 text-neutral-600 hover:bg-neutral-100">Delete plan</button>
+            </form>
+          </div>
+        )}
       </div>
       <PlanCalendar view={view} units={units} today={today} />
       <p className="text-xs text-neutral-500">
