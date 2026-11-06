@@ -132,3 +132,24 @@ export function runName(hour: number, distanceM: number): string {
   if (hour < 18) return "Afternoon Run";
   return "Evening Run";
 }
+
+/**
+ * A made-up half-marathon course for the demo plan: 21.1 km heading north
+ * with a long climb around 14 km and some rolling ground early, so the
+ * plan page shows the profile chart and hill sessions without a real file.
+ */
+export function demoCourseGpx(): string {
+  const n = 422; // one point every 50 m
+  const pts: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const km = (i * 50) / 1000;
+    let ele = 40;
+    if (km < 6) ele += 25 * Math.sin((km / 6) * Math.PI * 2) + 15 * Math.sin(km * 2.1);
+    else if (km < 13) ele += 10 * Math.sin(km * 1.3);
+    else if (km < 16) ele += (km - 13) * 38; // 3 km climb, about 114 m
+    else if (km < 19) ele += 114 - (km - 16) * 30;
+    else ele += 24 - (km - 19) * 6;
+    pts.push(`<trkpt lat="${(39.3 + i * 0.00045).toFixed(6)}" lon="-76.610000"><ele>${ele.toFixed(1)}</ele></trkpt>`);
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="logrun demo"><trk><name>Demo half</name><trkseg>${pts.join("")}</trkseg></trk></gpx>`;
+}

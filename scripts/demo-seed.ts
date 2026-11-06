@@ -34,7 +34,8 @@ async function main() {
   const { eq } = await import("drizzle-orm");
   const { db } = await import("../src/db");
   const { activities, athletes, trainingPlans } = await import("../src/db/schema");
-  const { DEMO_ATHLETE_ID, DEMO_FIRST_NAME, DEMO_LAST_NAME, transformExport } = await import("../src/lib/demo");
+  const { DEMO_ATHLETE_ID, DEMO_FIRST_NAME, DEMO_LAST_NAME, demoCourseGpx, transformExport } = await import("../src/lib/demo");
+  const { buildProfile } = await import("../src/lib/gpx");
   const { createPlan } = await import("../src/lib/plan-data");
   const { localDateKey } = await import("../src/lib/units");
 
@@ -78,9 +79,14 @@ async function main() {
     athleteId: DEMO_ATHLETE_ID,
     goal: "half",
     raceDate: localDateKey(race),
-    runDays: [0, 2, 4, 5, 6],
+    availableDays: [0, 1, 2, 3, 4, 5, 6],
     longRunDay: 0,
+    hardDays: 2,
     liftDays: [1, 3],
+    goalTimeS: 105 * 60,
+    course: buildProfile(demoCourseGpx()),
+    treadmill: false,
+    units: "miles",
     today: planStart,
   });
 

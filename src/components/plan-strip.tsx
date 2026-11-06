@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { PlanView } from "../lib/plan-data";
 import { formatDistance, unitLabel, type Units } from "../lib/units";
+import { KIND_LABEL } from "./plan-calendar";
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const LABEL = { easy: "Easy", long: "Long", tempo: "Tempo", intervals: "Intervals", rest: "Rest", lift: "Lift" } as const;
 
 /** Compact view of the current plan week for the dashboard. */
 export function PlanStrip({ view, units, today }: { view: PlanView | null; units: Units; today: string }) {
@@ -32,7 +32,7 @@ export function PlanStrip({ view, units, today }: { view: PlanView | null; units
                 className={`rounded border px-2 py-1 text-xs ${d.date === today ? "border-orange-500" : "border-neutral-200"} ${d.date < today && has && !d.completed ? "opacity-50" : ""}`}
               >
                 <div className="text-neutral-500">{DOW[i]}</div>
-                <div className="font-medium">{LABEL[d.kind === "lift" ? "rest" : d.kind]}{d.completed ? " ✓" : ""}</div>
+                <div className="font-medium">{KIND_LABEL[d.kind === "lift" ? "rest" : d.kind]}{d.completed ? " ✓" : ""}</div>
                 <div className="tabular-nums text-neutral-600">
                   {has ? `${formatDistance(d.targetDistanceM!, units)} ${unitLabel(units)}` : ""}
                   {(d.kind === "lift" || d.notes?.includes("Lift")) && <span className="ml-1 text-[10px] uppercase tracking-wide opacity-70">lift</span>}

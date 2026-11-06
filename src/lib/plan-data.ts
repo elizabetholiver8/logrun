@@ -1,36 +1,82 @@
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "../db";
 import { activities, planWorkouts, trainingPlans } from "../db/schema";
+import type { CourseProfile } from "./gpx";
 import {
   GOAL_DISTANCE_M, computeBaseline, generatePlan, matchWorkout,
   type GeneratedPlan, type GoalDistance, type PlanInput, type Weekday,
 } from "./plan";
-import { localDateKey } from "./units";
+import { localDateKey, type Units } from "./units";
 
 const BASELINE_LOOKBACK_DAYS = 42;
 
-/** Load the athlete's recent runs and compute the baseline the generator needs. */
-export async function loadBaseline(athleteId: number, today = new Date()) {
+/**
+ * Load the athlete's recent runs and compute the baseline the generator
+ * needs. `goal` sets the distance a run must reach to count toward best
+ * pace: half the race.
+ */
+export async function loadBaseline(athleteId: number, today = new Date(), goal?: GoalDistance) {
   const since = new Date(today.getTime() - BASELINE_LOOKBACK_DAYS * 86400_000);
   const runs = await db
-    .select({ startDateLocal: activities.startDateLocal, distanceM: activities.distanceM })
+    .select({ startDateLocal: activities.startDateLocal, distanceM: activities.distanceM, movingTimeS: activities.movingTimeS })
     .from(activities)
     .where(and(eq(activities.athleteId, athleteId), gte(activities.startDate, since)));
-  return computeBaseline(runs, today);
+  return computeBaseline(runs, today, goal ? GOAL_DISTANCE_M[goal] / 2 : 0);
 }
 
 export type CreatePlanArgs = {
   athleteId: number;
   goal: GoalDistance;
   raceDate: string;
-  /** Weekdays to run, long run day included. 3 to 6 days. */
-  runDays: Weekday[];
+  /** Weekdays the athlete can run, long run day included. 3 to 7 days. */
+  availableDays: Weekday[];
   longRunDay: Weekday;
   /** Omit to let the generator pick. */
   qualityDay?: Weekday;
+  hardDays: 1 | 2;
   liftDays: Weekday[];
+  goalTimeS?: number;
+  course?: CourseProfile;
+  treadmill: boolean;
+  units: Units;
   today?: Date;
 };
+
+function planInput(args: CreatePlanArgs, baseline: PlanInput["baseline"], today: Date): PlanInput {
+  return {
+    goal: args.goal,
+    raceDate: args.raceDate,
+    startDate: localDateKey(today),
+    availableDays: args.availableDays,
+    longRunDay: args.longRunDay,
+    qualityDay: args.qualityDay,
+    hardDays: args.hardDays,
+    liftDays: args.liftDays,
+    goalTimeS: args.goalTimeS,
+    course: args.course,
+    treadmill: args.treadmill,
+    units: args.units,
+    baseline,
+  };
+}
+
+function planRow(args: CreatePlanArgs, plan: GeneratedPlan) {
+  return {
+    athleteId: args.athleteId,
+    goalDistanceM: GOAL_DISTANCE_M[args.goal],
+    raceDate: args.raceDate,
+    daysPerWeek: args.availableDays.length,
+    liftDays: args.liftDays,
+    runDays: args.availableDays,
+    longRunDay: args.longRunDay,
+    qualityDay: args.qualityDay ?? null,
+    hardDays: args.hardDays,
+    goalTimeS: args.goalTimeS ?? null,
+    treadmill: args.treadmill,
+    paceZones: plan.zones,
+    course: args.course ?? null,
+  };
+}
 
 /**
  * Generate and persist a plan, replacing any existing plan for the athlete.
@@ -38,34 +84,12 @@ export type CreatePlanArgs = {
  */
 export async function createPlan(args: CreatePlanArgs): Promise<{ planId: number; plan: GeneratedPlan }> {
   const today = args.today ?? new Date();
-  const baseline = await loadBaseline(args.athleteId, today);
-  const plan = generatePlan({
-    goal: args.goal,
-    raceDate: args.raceDate,
-    startDate: localDateKey(today),
-    daysPerWeek: args.runDays.length as PlanInput["daysPerWeek"],
-    runDays: args.runDays,
-    longRunDay: args.longRunDay,
-    qualityDay: args.qualityDay,
-    liftDays: args.liftDays,
-    baseline,
-  });
+  const baseline = await loadBaseline(args.athleteId, today, args.goal);
+  const plan = generatePlan(planInput(args, baseline, today));
 
   // One plan per athlete. Delete cascades to plan_workouts.
   await db.delete(trainingPlans).where(eq(trainingPlans.athleteId, args.athleteId));
-  const [row] = await db
-    .insert(trainingPlans)
-    .values({
-      athleteId: args.athleteId,
-      goalDistanceM: GOAL_DISTANCE_M[args.goal],
-      raceDate: args.raceDate,
-      daysPerWeek: args.runDays.length,
-      liftDays: args.liftDays,
-      runDays: args.runDays,
-      longRunDay: args.longRunDay,
-      qualityDay: args.qualityDay ?? null,
-    })
-    .returning();
+  const [row] = await db.insert(trainingPlans).values(planRow(args, plan)).returning();
 
   const rows = plan.weeks.flatMap((w) =>
     w.workouts.map((d) => ({
@@ -74,6 +98,8 @@ export async function createPlan(args: CreatePlanArgs): Promise<{ planId: number
       kind: d.kind,
       targetDistanceM: d.targetDistanceM,
       targetDurationS: null,
+      paceMinSPerKm: d.paceSPerKm?.[0] ?? null,
+      paceMaxSPerKm: d.paceSPerKm?.[1] ?? null,
       notes: d.notes,
     })),
   );
@@ -89,10 +115,14 @@ export type PlanDay = {
   date: string;
   kind: typeof planWorkouts.$inferSelect.kind;
   targetDistanceM: number | null;
+  /** Seconds per km, slow then fast. */
+  pace: [number, number] | null;
   notes: string | null;
   completed: boolean;
   actualM: number;
   activityId: number | null;
+  /** The run that satisfied the day, or the longest run that day when none did. */
+  actualRun: { id: number; name: string; distanceM: number; movingTimeS: number } | null;
 };
 
 export type PlanView = {
@@ -109,8 +139,11 @@ export function goalFromDistance(m: number): GoalDistance {
   return best;
 }
 
-type WorkoutLike = Pick<PlanDay, "id" | "date" | "kind" | "targetDistanceM" | "notes">;
-type RunLike = { id: number; distanceM: number; startDateLocal: Date };
+type WorkoutLike = Pick<PlanDay, "id" | "date" | "kind" | "targetDistanceM" | "notes"> & {
+  paceMinSPerKm?: number | null;
+  paceMaxSPerKm?: number | null;
+};
+type RunLike = { id: number; name: string; distanceM: number; movingTimeS: number; startDateLocal: Date };
 
 /**
  * Group workouts into weeks and mark completion against runs. Shared by the
@@ -118,11 +151,11 @@ type RunLike = { id: number; distanceM: number; startDateLocal: Date };
  * counts as done.
  */
 export function buildWeeks(workouts: WorkoutLike[], runs: RunLike[]): PlanView["weeks"] {
-  const runsByDay = new Map<string, { id: number; distanceM: number }[]>();
+  const runsByDay = new Map<string, RunLike[]>();
   for (const r of runs) {
     const key = localDateKey(r.startDateLocal);
     const list = runsByDay.get(key) ?? [];
-    list.push({ id: r.id, distanceM: r.distanceM });
+    list.push(r);
     runsByDay.set(key, list);
   }
 
@@ -130,16 +163,22 @@ export function buildWeeks(workouts: WorkoutLike[], runs: RunLike[]): PlanView["
   for (let i = 0; i < workouts.length; i += 7) {
     const chunk = workouts.slice(i, i + 7);
     const days: PlanDay[] = chunk.map((w) => {
-      const m = matchWorkout(w, runsByDay.get(w.date) ?? []);
+      const dayRuns = runsByDay.get(w.date) ?? [];
+      const m = matchWorkout(w, dayRuns);
+      const longest = dayRuns.length ? dayRuns.reduce((a, r) => (r.distanceM > a.distanceM ? r : a)) : null;
+      const pace: [number, number] | null =
+        w.paceMinSPerKm != null && w.paceMaxSPerKm != null ? [w.paceMinSPerKm, w.paceMaxSPerKm] : null;
       return {
         id: w.id,
         date: w.date,
         kind: w.kind,
         targetDistanceM: w.targetDistanceM,
+        pace,
         notes: w.notes,
         completed: m.completed,
         actualM: m.actualM,
         activityId: m.activityId,
+        actualRun: longest ? { id: longest.id, name: longest.name, distanceM: longest.distanceM, movingTimeS: longest.movingTimeS } : null,
       };
     });
     weeks.push({
@@ -154,7 +193,7 @@ export function buildWeeks(workouts: WorkoutLike[], runs: RunLike[]): PlanView["
 
 async function loadRunsBetween(athleteId: number, first: string, last: string): Promise<RunLike[]> {
   return db
-    .select({ id: activities.id, distanceM: activities.distanceM, startDateLocal: activities.startDateLocal })
+    .select({ id: activities.id, name: activities.name, distanceM: activities.distanceM, movingTimeS: activities.movingTimeS, startDateLocal: activities.startDateLocal })
     .from(activities)
     .where(
       and(
@@ -193,33 +232,14 @@ export async function loadPlan(athleteId: number): Promise<PlanView | null> {
  */
 export async function previewPlan(args: CreatePlanArgs): Promise<{ view: PlanView; warnings: string[] }> {
   const today = args.today ?? new Date();
-  const baseline = await loadBaseline(args.athleteId, today);
-  const plan = generatePlan({
-    goal: args.goal,
-    raceDate: args.raceDate,
-    startDate: localDateKey(today),
-    daysPerWeek: args.runDays.length as PlanInput["daysPerWeek"],
-    runDays: args.runDays,
-    longRunDay: args.longRunDay,
-    qualityDay: args.qualityDay,
-    liftDays: args.liftDays,
-    baseline,
-  });
-  const workouts: WorkoutLike[] = plan.weeks.flatMap((w) => w.workouts).map((d, i) => ({ id: i + 1, ...d }));
+  const baseline = await loadBaseline(args.athleteId, today, args.goal);
+  const plan = generatePlan(planInput(args, baseline, today));
+  const workouts: WorkoutLike[] = plan.weeks
+    .flatMap((w) => w.workouts)
+    .map((d, i) => ({ id: i + 1, date: d.date, kind: d.kind, targetDistanceM: d.targetDistanceM, notes: d.notes, paceMinSPerKm: d.paceSPerKm?.[0], paceMaxSPerKm: d.paceSPerKm?.[1] }));
   const runs = workouts.length ? await loadRunsBetween(args.athleteId, workouts[0].date, workouts[workouts.length - 1].date) : [];
   const view: PlanView = {
-    plan: {
-      id: 0,
-      athleteId: args.athleteId,
-      goalDistanceM: GOAL_DISTANCE_M[args.goal],
-      raceDate: args.raceDate,
-      daysPerWeek: args.runDays.length,
-      liftDays: args.liftDays,
-      runDays: args.runDays,
-      longRunDay: args.longRunDay,
-      qualityDay: args.qualityDay ?? null,
-      createdAt: today,
-    },
+    plan: { id: 0, createdAt: today, ...planRow(args, plan) },
     goal: args.goal,
     weeks: buildWeeks(workouts, runs),
   };

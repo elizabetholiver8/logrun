@@ -2,8 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { eq } from "drizzle-orm";
+import { CourseProfileChart } from "../../components/course-profile-chart";
 import { DemoBanner } from "../../components/demo-banner";
-import { PlanCalendar } from "../../components/plan-calendar";
+import { PaceZonesTable } from "../../components/pace-zones-table";
+import { PlanCalendarView } from "../../components/plan-calendar-view";
 import { db } from "../../db";
 import { athletes } from "../../db/schema";
 import { loadPlan } from "../../lib/plan-data";
@@ -42,6 +44,7 @@ async function Content() {
   const peak = Math.max(...view.weeks.map((w) => w.targetM));
   const weeksLeft = view.weeks.filter((w) => w.days[6].date >= today).length;
 
+  const buttonClass = "rounded border border-neutral-300 px-3 py-1 hover:bg-neutral-100";
   const disabledClass = "rounded border border-neutral-300 px-3 py-1 opacity-50";
   return (
     <>
@@ -53,23 +56,26 @@ async function Content() {
             Race {formatLong(view.plan.raceDate)}. {view.weeks.length} weeks, {weeksLeft} to go. Peak week {formatDistance(peak, units)} {unitLabel(units)}.
           </p>
         </div>
-        {demo ? (
-          <div className="flex gap-3 text-sm">
-            <Link href="/plan/new" className="rounded border border-neutral-300 px-3 py-1 hover:bg-neutral-100">Try the plan builder</Link>
+        <div className="flex flex-wrap gap-3 text-sm">
+          <a href="/plan/export?format=ics" className={buttonClass} download>Download calendar</a>
+          <a href="/plan/export?format=csv" className={buttonClass} download>Download CSV</a>
+          <Link href="/plan/new" className={buttonClass}>{demo ? "Try the plan builder" : "Rebuild"}</Link>
+          {demo ? (
             <span className={disabledClass} title="Deleting is off in the demo">Delete plan</span>
-          </div>
-        ) : (
-          <div className="flex gap-3 text-sm">
-            <Link href="/plan/new" className="rounded border border-neutral-300 px-3 py-1 hover:bg-neutral-100">Rebuild</Link>
+          ) : (
             <form action={deletePlanAction}>
-              <button type="submit" className="rounded border border-neutral-300 px-3 py-1 text-neutral-600 hover:bg-neutral-100">Delete plan</button>
+              <button type="submit" className={`${buttonClass} text-neutral-600`}>Delete plan</button>
             </form>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-      <PlanCalendar view={view} units={units} today={today} />
+      {view.plan.paceZones && view.plan.goalTimeS && (
+        <PaceZonesTable zones={view.plan.paceZones} goalTimeS={view.plan.goalTimeS} units={units} />
+      )}
+      {view.plan.course && <CourseProfileChart course={view.plan.course} units={units} />}
+      <PlanCalendarView view={view} units={units} today={today} />
       <p className="text-xs text-neutral-500">
-        A check marks a day where your synced runs reached at least 80 percent of the target. Hover a day for details. Lifting is a slot, not a prescription.
+        A check marks a day where your synced runs reached at least 80 percent of the target. Hover a day for details, or switch on details above. Lifting is a slot, not a prescription.
       </p>
     </>
   );

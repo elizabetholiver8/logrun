@@ -14,10 +14,14 @@ export function DemoPlanExplainer() {
         <p>
           The generator is a rules engine, not a template. It starts from this runner&apos;s average over the last {BASELINE_WEEKS} complete
           weeks and ramps weekly volume by at most {pct(RAMP_MAX)} toward a peak set by the goal distance. Every {ordinal(CUTBACK_EVERY)} week
-          is a cutback to {pct(CUTBACK_FACTOR)} of the week before, and the last weeks before the race taper down. Each week gets one long run
-          at about {pct(LONG_RUN_SHARE)} of the volume on your chosen day, one quality session kept off the days beside it unless you override
-          that, easy runs on the rest of your days, and lifting slots that are moved off the day before the long run. Each day is then checked
-          against synced runs and counts as done at {pct(1 - MATCH_TOLERANCE)} of target.
+          is a cutback to {pct(CUTBACK_FACTOR)} of the week before, and the last weeks before the race taper down. How many of your available
+          days get used follows each week&apos;s mileage, spread evenly, so a beginner starts on three days and gains days as the build grows.
+          Each week gets one long run at about {pct(LONG_RUN_SHARE)} of the volume on your chosen day, one quality session kept off the days
+          beside it unless you override that, an optional second hard day for runners with six or seven days free, easy runs on the rest, and
+          lifting slots moved off the day before the long run. A goal time gives every run a pace range from Daniels&apos; running formula. A
+          race GPX file is parsed for climbing, and a rolling or hilly course turns interval sessions into hill repeats sized to its longest
+          climb, written as treadmill incline work if you have one. Each day is then checked against synced runs and counts as done at{" "}
+          {pct(1 - MATCH_TOLERANCE)} of target.
         </p>
       </div>
       <div>

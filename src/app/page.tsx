@@ -7,7 +7,7 @@ import { SITE } from "../lib/site";
 const FEATURES = [
   { title: "Strava sync", body: "OAuth connect, paged history backfill, then webhooks keep new, edited and deleted runs current without polling." },
   { title: "Dashboard", body: "Thirty-day totals, weekly distance and pace charts, and a route map for every run with GPS." },
-  { title: "Training plans", body: "A rules engine builds a plan to a race date from your real baseline: capped weekly ramps, cutback weeks, a taper, and lifting slots that stay clear of the long run." },
+  { title: "Training plans", body: "A rules engine builds a plan to a race date from your real baseline: capped weekly ramps, cutback weeks, a taper, target paces from your goal time, hill sessions sized to the race course, and lifting slots that stay clear of the long run. Download it as a calendar or CSV." },
   { title: "Progress tracking", body: "Each planned day is matched against synced runs, so the calendar shows what you actually did." },
 ];
 

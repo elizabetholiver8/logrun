@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  BASELINE_WEEKS, CUTBACK_FACTOR, LONG_RUN_SHARE, RAMP_MAX, TAPER_FLOOR,
-  adjacentWeekdays, chooseRunDays, computeBaseline, defaultQualityDay, generatePlan, layoutWeek, matchWorkout,
-  peakVolumeM, resolveLiftDays, weeklyTargets, type Baseline,
+  BASELINE_WEEKS, CUTBACK_FACTOR, DAY_THRESHOLDS_M, LONG_RUN_SHARE, RAMP_MAX, TAPER_FLOOR,
+  adjacentWeekdays, chooseRunDays, computeBaseline, defaultQualityDay, generatePlan, hillGrade, layoutWeek, matchWorkout,
+  peakVolumeM, resolveLiftDays, runDaysForVolume, secondQualityDay, selectRunDays, weeklyTargets, type Baseline, type Weekday,
 } from "./plan";
+import type { CourseProfile } from "./gpx";
 
 const MI = 1609.344;
 const today = new Date(2026, 10, 2); // Mon Nov 2 2026
 
-function run(y: number, m: number, d: number, miles: number) {
-  return { startDateLocal: new Date(y, m - 1, d, 7), distanceM: miles * MI };
+function run(y: number, m: number, d: number, miles: number, minutes?: number) {
+  return { startDateLocal: new Date(y, m - 1, d, 7), distanceM: miles * MI, movingTimeS: minutes ? minutes * 60 : undefined };
 }
 
 describe("computeBaseline", () => {
@@ -33,7 +34,54 @@ describe("computeBaseline", () => {
     expect(b.weeksOfData).toBe(2);
   });
   it("returns zeros with no data", () => {
-    expect(computeBaseline([], today)).toEqual({ weeklyM: 0, longestM: 0, weeksOfData: 0 });
+    expect(computeBaseline([], today)).toEqual({ weeklyM: 0, longestM: 0, weeksOfData: 0, runsPerWeek: 0, bestPaceSPerKm: null });
+  });
+  it("counts runs per week and the best pace among runs long enough to matter", () => {
+    const runs = [run(2026, 10, 26, 3, 24), run(2026, 10, 28, 6, 54), run(2026, 10, 19, 7, 56), run(2026, 10, 12, 2, 12)];
+    const b = computeBaseline(runs, today, 5 * MI);
+    expect(b.runsPerWeek).toBe(1);
+    // 3 mi in 24 min is the fastest but too short to count; 7 mi in 56 min wins among the long ones.
+    expect(b.bestPaceSPerKm).toBeCloseTo((56 * 60) / (7 * MI / 1000), 3);
+  });
+});
+
+describe("runDaysForVolume and selectRunDays", () => {
+  it("starts at three days and adds one per threshold, capped by availability", () => {
+    expect(runDaysForVolume(10_000, 5, 0)).toBe(3);
+    expect(runDaysForVolume(DAY_THRESHOLDS_M[0], 5, 0)).toBe(4);
+    expect(runDaysForVolume(DAY_THRESHOLDS_M[1], 5, 0)).toBe(5);
+    expect(runDaysForVolume(DAY_THRESHOLDS_M[3], 5, 0)).toBe(5);
+    expect(runDaysForVolume(DAY_THRESHOLDS_M[3], 7, 0)).toBe(7);
+  });
+  it("never drops below what the runner already does, within availability, unless easy runs would get silly", () => {
+    expect(runDaysForVolume(40_000, 6, 5)).toBe(5);
+    expect(runDaysForVolume(40_000, 4, 5)).toBe(4);
+    // 10 km a week leaves 4.8 km for easy days: one easy day, so three days total.
+    expect(runDaysForVolume(10_000, 6, 5)).toBe(3);
+    // 55 km with two hard sessions leaves 15.4 km easy: three easy days, six total, not seven.
+    expect(runDaysForVolume(55_000, 7, 7, 2)).toBe(6);
+  });
+  it("spreads chosen days so rest days are not bunched", () => {
+    // Five available, three used: Sun long run plus two spread days.
+    expect(selectRunDays([0, 1, 2, 3, 4], 3, [0, 2])).toEqual([0, 2, 4]);
+    // Every day available, four used: rest before the Sunday long run beats a perfect alternation.
+    expect(selectRunDays([0, 1, 2, 3, 4, 5, 6], 4, [0, 2])).toEqual([0, 2, 3, 5]);
+    // Five of seven: the two rest days are split up, and one falls before the Sunday long run.
+    expect(selectRunDays([0, 1, 2, 3, 4, 5, 6], 5, [0, 2])).toEqual([0, 1, 2, 4, 5]);
+  });
+  it("always keeps the required days", () => {
+    expect(selectRunDays([1, 3, 5, 6], 2, [6, 3])).toEqual([3, 6]);
+  });
+});
+
+describe("secondQualityDay", () => {
+  it("picks a day clear of the long run and the first quality day", () => {
+    const d = secondQualityDay([0, 1, 2, 3, 4, 5, 6], 0, 2);
+    expect(d).toBe(4);
+  });
+  it("returns null when nothing fits", () => {
+    expect(secondQualityDay([0, 2, 4, 5], 0, 2)).toBe(5 === 5 && adjacentWeekdays(5, 0) ? null : 4);
+    expect(secondQualityDay([0, 1, 2, 3], 0, 2)).toBe(null);
   });
 });
 
@@ -117,7 +165,7 @@ describe("defaultQualityDay and adjacency", () => {
 
 describe("layoutWeek", () => {
   const monday = new Date(2026, 10, 2);
-  const week = layoutWeek(monday, 40_000, "build", { daysPerWeek: 4, longRunDay: 0, liftDays: [1, 3], qualityKind: "tempo", goalM: 21097.5 });
+  const week = layoutWeek(monday, 40_000, "build", { runDays: [0, 2, 4, 5], longRunDay: 0, liftDays: [1, 3], quality: [{ day: 2, kind: "tempo" }], goalM: 21097.5 });
   it("returns seven days, Monday first", () => {
     expect(week).toHaveLength(7);
     expect(week[0].date).toBe("2026-11-02");
@@ -144,18 +192,22 @@ describe("layoutWeek", () => {
     expect(week.filter((w) => w.notes?.includes("Lift") || w.kind === "lift")).toHaveLength(2);
   });
   it("schedules no lifts in race week", () => {
-    const raceWeek = layoutWeek(monday, 15_000, "race", { daysPerWeek: 4, longRunDay: 0, liftDays: [1, 3], qualityKind: "tempo", goalM: 21097.5, raceDate: "2026-11-08" });
+    const raceWeek = layoutWeek(monday, 15_000, "race", { runDays: [0, 2, 4, 5], longRunDay: 0, liftDays: [1, 3], quality: [{ day: 2, kind: "tempo" }], goalM: 21097.5, raceDate: "2026-11-08" });
     expect(raceWeek.some((w) => w.kind === "lift" || w.notes?.includes("Lift"))).toBe(false);
   });
   it("replaces the quality session with easy running during taper", () => {
-    const taper = layoutWeek(monday, 25_000, "taper", { daysPerWeek: 4, longRunDay: 0, liftDays: [], qualityKind: "intervals", goalM: 21097.5 });
+    const taper = layoutWeek(monday, 25_000, "taper", { runDays: [0, 2, 4, 5], longRunDay: 0, liftDays: [], quality: [{ day: 2, kind: "intervals" }], goalM: 21097.5 });
     expect(taper.some((w) => w.kind === "intervals" || w.kind === "tempo")).toBe(false);
   });
 });
 
 describe("generatePlan", () => {
-  const baseline: Baseline = { weeklyM: 35 * MI, longestM: 10 * MI, weeksOfData: 4 };
-  const input = { goal: "half" as const, raceDate: "2027-03-14", startDate: "2026-11-02", daysPerWeek: 5 as const, liftDays: [1, 4] as (1 | 4)[], baseline };
+  const baseline: Baseline = { weeklyM: 35 * MI, longestM: 10 * MI, weeksOfData: 4, runsPerWeek: 5, bestPaceSPerKm: 330 };
+  const input = {
+    goal: "half" as const, raceDate: "2027-03-14", startDate: "2026-11-02",
+    availableDays: [0, 1, 2, 3, 4, 5, 6] as Weekday[], longRunDay: 0 as Weekday, hardDays: 1 as const,
+    liftDays: [1, 4] as (1 | 4)[], baseline,
+  };
 
   it("covers every day from the start week through race week and ends on race day", () => {
     const p = generatePlan(input);
@@ -175,11 +227,11 @@ describe("generatePlan", () => {
     expect(p.warnings.some((w) => /compressed/.test(w))).toBe(true);
   });
   it("warns when baseline data is thin", () => {
-    const p = generatePlan({ ...input, baseline: { weeklyM: 10 * MI, longestM: 4 * MI, weeksOfData: 1 } });
+    const p = generatePlan({ ...input, baseline: { ...baseline, weeklyM: 10 * MI, longestM: 4 * MI, weeksOfData: 1 } });
     expect(p.warnings.some((w) => /Baseline uses 1 of/.test(w))).toBe(true);
   });
   it("warns when the build cannot reach full volume at a safe ramp", () => {
-    const p = generatePlan({ ...input, goal: "marathon", raceDate: "2026-12-27", baseline: { weeklyM: 15 * MI, longestM: 6 * MI, weeksOfData: 4 } });
+    const p = generatePlan({ ...input, goal: "marathon", raceDate: "2026-12-27", baseline: { ...baseline, weeklyM: 15 * MI, longestM: 6 * MI } });
     expect(p.warnings.some((w) => /more build week/.test(w))).toBe(true);
   });
   it("does not prescribe days before the start date", () => {
@@ -190,23 +242,84 @@ describe("generatePlan", () => {
   it("rejects a race date that is not after the start", () => {
     expect(() => generatePlan({ ...input, raceDate: "2026-11-02" })).toThrow();
   });
-  it("runs only on the chosen days when runDays is given", () => {
-    const p = generatePlan({ ...input, runDays: [0, 1, 3, 5], longRunDay: 0 });
+  it("runs only on available days", () => {
+    const p = generatePlan({ ...input, availableDays: [0, 1, 3, 5], baseline: { ...baseline, runsPerWeek: 4 } });
     const buildWeek = p.weeks[1].workouts;
     const runDows = buildWeek.filter((w) => w.targetDistanceM !== null).map((w) => new Date(`${w.date}T00:00:00`).getDay());
     expect(runDows.sort()).toEqual([0, 1, 3, 5]);
   });
+  it("starts a beginner on three days even with five available, and adds days as volume grows", () => {
+    const beginner: Baseline = { weeklyM: 8 * MI, longestM: 3 * MI, weeksOfData: 4, runsPerWeek: 2, bestPaceSPerKm: null };
+    const p = generatePlan({ ...input, availableDays: [0, 1, 2, 3, 4], baseline: beginner });
+    expect(p.weeks[0].runDays).toBe(3);
+    const peakWeekDays = Math.max(...p.weeks.map((w) => w.runDays));
+    expect(peakWeekDays).toBeGreaterThan(3);
+    // No two rest days in a row with three run days out of Sun, Mon, Tue, Wed, Thu
+    // is impossible, but the run days must not be bunched: at most two in a row.
+    const dows = p.weeks[0].workouts.filter((w) => w.targetDistanceM !== null).map((w) => new Date(`${w.date}T00:00:00`).getDay()).sort();
+    expect(dows).toEqual([0, 2, 4]);
+  });
   it("honors a quality day override and warns when it is next to the long run", () => {
-    const p = generatePlan({ ...input, runDays: [0, 1, 3, 5], longRunDay: 0, qualityDay: 1 });
+    const p = generatePlan({ ...input, availableDays: [0, 1, 3, 5], qualityDay: 1 });
     const monday = p.weeks[1].workouts[0];
     expect(["tempo", "intervals"]).toContain(monday.kind);
     expect(p.warnings.some((w) => /next to the Sunday long run/.test(w))).toBe(true);
-    const quiet = generatePlan({ ...input, runDays: [0, 1, 3, 5], longRunDay: 0, qualityDay: 3 });
+    const quiet = generatePlan({ ...input, availableDays: [0, 1, 3, 5], qualityDay: 3 });
     expect(quiet.warnings).toEqual([]);
   });
-  it("rejects run days that exclude the long run or a quality day that is the long run", () => {
-    expect(() => generatePlan({ ...input, runDays: [1, 3, 5], longRunDay: 0 })).toThrow();
-    expect(() => generatePlan({ ...input, runDays: [0, 1, 3], longRunDay: 0, qualityDay: 0 })).toThrow();
+  it("rejects available days that exclude the long run or a quality day that is the long run", () => {
+    expect(() => generatePlan({ ...input, availableDays: [1, 3, 5] })).toThrow();
+    expect(() => generatePlan({ ...input, availableDays: [0, 1, 3], qualityDay: 0 })).toThrow();
+  });
+  it("adds a second hard day only in weeks with five or more runs, and warns when it cannot", () => {
+    const p = generatePlan({ ...input, hardDays: 2 });
+    const kinds = (i: number) => p.weeks[i].workouts.map((w) => w.kind);
+    const hardCount = (i: number) => kinds(i).filter((k) => k === "tempo" || k === "intervals").length;
+    expect(hardCount(1)).toBe(2);
+    expect(kinds(1)).toContain("tempo");
+    expect(kinds(1)).toContain("intervals");
+    const few = generatePlan({ ...input, availableDays: [0, 1, 2, 3, 4], hardDays: 2 });
+    expect(few.warnings.some((w) => /second hard day/.test(w))).toBe(true);
+  });
+  it("gives every run a pace range when a goal time is set, and warns about an unrealistic goal", () => {
+    const p = generatePlan({ ...input, goalTimeS: 105 * 60 });
+    expect(p.zones).not.toBeNull();
+    const easy = p.weeks[2].workouts.find((w) => w.kind === "easy")!;
+    const tempo = p.weeks[2].workouts.find((w) => w.kind === "tempo")!;
+    expect(easy.paceSPerKm![1]).toBeGreaterThan(tempo.paceSPerKm![1]);
+    expect(p.warnings).toEqual([]);
+    const race = p.weeks.at(-1)!.workouts.find((w) => w.date === "2027-03-14")!;
+    expect(race.paceSPerKm![0]).toBeCloseTo((105 * 60) / 21.0975, 3);
+    const fast = generatePlan({ ...input, goalTimeS: 80 * 60 });
+    expect(fast.warnings.some((w) => /more than 10 percent faster/.test(w))).toBe(true);
+    const unknown = generatePlan({ ...input, goalTimeS: 105 * 60, baseline: { ...baseline, bestPaceSPerKm: null } });
+    expect(unknown.warnings.some((w) => /check your goal time/.test(w))).toBe(true);
+  });
+  it("turns interval sessions into hill repeats on a hilly course, treadmill wording when asked", () => {
+    const course: CourseProfile = {
+      points: [], distanceM: 21_000, gainM: 520, lossM: 500, gainPerKm: 24.8,
+      longestClimb: { startM: 14_000, lengthM: 2_400, gainM: 150, gradePct: 6.3 }, maxGradePct: 9.1, category: "hilly",
+    };
+    const p = generatePlan({ ...input, course, units: "miles" });
+    const all = p.weeks.flatMap((w) => w.workouts);
+    expect(all.some((w) => w.kind === "hills")).toBe(true);
+    expect(all.some((w) => w.kind === "intervals")).toBe(false);
+    const hill = all.find((w) => w.kind === "hills")!;
+    expect(hill.notes).toMatch(/Hill repeats: .*8 x 90 s.*about 6%/);
+    expect(hill.paceSPerKm).toBeNull();
+    const long = p.weeks[1].workouts.find((w) => w.kind === "long")!;
+    expect(long.notes).toMatch(/hilly route, about \d+ ft of climbing/);
+    const race = all.find((w) => w.date === "2027-03-14")!;
+    expect(race.notes).toMatch(/Race day\. 1706 ft of climbing, longest climb 1\.5 mi at 6\.3%/);
+    const tm = generatePlan({ ...input, course, treadmill: true });
+    expect(tm.weeks.flatMap((w) => w.workouts).find((w) => w.kind === "hills")!.notes).toMatch(/Treadmill hills: .*6% incline/);
+    expect(hillGrade({ ...course, longestClimb: { ...course.longestClimb!, gradePct: 12 } })).toBe(8);
+  });
+  it("adds no hill work on a flat course and says so", () => {
+    const flat: CourseProfile = { points: [], distanceM: 21_000, gainM: 60, lossM: 60, gainPerKm: 2.9, longestClimb: null, maxGradePct: 1.2, category: "flat" };
+    const p = generatePlan({ ...input, course: flat });
+    expect(p.weeks.flatMap((w) => w.workouts).some((w) => w.kind === "hills")).toBe(false);
+    expect(p.warnings.some((w) => /course is flat/.test(w))).toBe(true);
   });
 });
 

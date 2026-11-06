@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   date,
   index,
   integer,
@@ -10,6 +11,26 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+
+/** Shapes stored as jsonb. Kept structural here so the schema does not import app code. */
+export type PaceZonesJson = {
+  vdot: number;
+  easy: [number, number];
+  long: [number, number];
+  tempo: [number, number];
+  intervals: [number, number];
+  race: [number, number];
+};
+export type CourseProfileJson = {
+  points: [number, number][];
+  distanceM: number;
+  gainM: number;
+  lossM: number;
+  gainPerKm: number;
+  longestClimb: { startM: number; lengthM: number; gainM: number; gradePct: number } | null;
+  maxGradePct: number;
+  category: "flat" | "rolling" | "hilly";
+};
 
 /**
  * One row per Strava athlete who has connected. The primary key is Strava's
@@ -128,11 +149,18 @@ export const trainingPlans = pgTable("training_plans", {
   daysPerWeek: integer("days_per_week").notNull(),
   /** 0 = Sunday through 6 = Saturday. */
   liftDays: jsonb("lift_days").$type<number[]>().notNull(),
-  /** The athlete's chosen run weekdays; null for plans made before this was a choice. */
+  /** Weekdays the athlete can run; the generator picks how many to use each week. Null for older plans. */
   runDays: jsonb("run_days").$type<number[]>(),
   longRunDay: integer("long_run_day"),
   /** Null means the generator picked the quality day. */
   qualityDay: integer("quality_day"),
+  hardDays: integer("hard_days").notNull().default(1),
+  goalTimeS: integer("goal_time_s"),
+  treadmill: boolean("treadmill").notNull().default(false),
+  /** Daniels pace zones derived from the goal time, s/km. */
+  paceZones: jsonb("pace_zones").$type<PaceZonesJson>(),
+  /** Parsed race course profile. */
+  course: jsonb("course").$type<CourseProfileJson>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -143,6 +171,7 @@ export type WorkoutKind =
   | "long"
   | "tempo"
   | "intervals"
+  | "hills"
   | "rest"
   | "lift";
 
@@ -162,6 +191,9 @@ export const planWorkouts = pgTable(
     kind: text("kind").$type<WorkoutKind>().notNull(),
     targetDistanceM: real("target_distance_m"),
     targetDurationS: integer("target_duration_s"),
+    /** Target pace range, seconds per km, slow then fast. */
+    paceMinSPerKm: real("pace_min_s_per_km"),
+    paceMaxSPerKm: real("pace_max_s_per_km"),
     notes: text("notes"),
     completedActivityId: bigint("completed_activity_id", {
       mode: "number",

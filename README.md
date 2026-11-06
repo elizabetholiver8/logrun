@@ -17,9 +17,14 @@ with sample data, so no account is needed to look around.
   runs, and a route map for any run with GPS.
 - **Training plans.** A deterministic generator builds a plan to a race date
   from the athlete's own four-week baseline: weekly ramps capped at 10
-  percent, a cutback every fourth week, a taper, one long run and one quality
-  session per week on the athlete's chosen days, and lifting slots that are
-  kept off the day before the long run.
+  percent, a cutback every fourth week, a taper, one long run and one or two
+  quality sessions per week. The athlete says which days are free and the
+  generator decides how many to use from each week's volume, spread so rest
+  days never bunch. A goal time gives every run a pace range through
+  Daniels' running formula. A race GPX file is parsed in code for climbing,
+  and a rolling or hilly course turns interval sessions into hill repeats,
+  written as treadmill incline work when the athlete has one. Plans download
+  as a calendar file or CSV.
 - **Progress tracking.** Each planned day is matched against synced runs at
   read time, so the calendar reflects what was actually done, including runs
   that arrive later by webhook.
@@ -49,7 +54,8 @@ Browser ── Next.js App Router (React server components, server actions)
 - `src/lib/webhooks.ts`: subscription validation, event parsing, and the
   decision table for create, update, delete and deauthorize.
 - `src/lib/plan.ts`: the plan generator. Pure functions, no I/O, so every rule
-  has a unit test.
+  has a unit test. `pace.ts` holds the Daniels formula, `gpx.ts` the course
+  parser, `plan-export.ts` the CSV and calendar writers.
 - `src/lib/session.ts`: HMAC-signed stateless sessions. Nothing is stored
   server side.
 - `src/lib/crypto.ts`: AES-256-GCM for tokens, keyed from the session secret.

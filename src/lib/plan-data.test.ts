@@ -14,10 +14,10 @@ describe("buildWeeks", () => {
     day(8, "2026-11-09", "easy", 5),
   ];
   const runs = [
-    { id: 100, distanceM: 5.1 * MI, startDateLocal: new Date(2026, 10, 2, 7) },
-    { id: 101, distanceM: 3 * MI, startDateLocal: new Date(2026, 10, 4, 7) },
-    { id: 102, distanceM: 6 * MI, startDateLocal: new Date(2026, 10, 8, 8) },
-    { id: 103, distanceM: 4 * MI, startDateLocal: new Date(2026, 10, 8, 16) },
+    { id: 100, name: "Morning Run", distanceM: 5.1 * MI, movingTimeS: 2700, startDateLocal: new Date(2026, 10, 2, 7) },
+    { id: 101, name: "Short", distanceM: 3 * MI, movingTimeS: 1600, startDateLocal: new Date(2026, 10, 4, 7) },
+    { id: 102, name: "Long Run", distanceM: 6 * MI, movingTimeS: 3300, startDateLocal: new Date(2026, 10, 8, 8) },
+    { id: 103, name: "Shakeout", distanceM: 4 * MI, movingTimeS: 2200, startDateLocal: new Date(2026, 10, 8, 16) },
   ];
   const weeks = buildWeeks(workouts, runs);
 
@@ -31,6 +31,12 @@ describe("buildWeeks", () => {
     expect(done).toEqual(["2026-11-02", "2026-11-08"]);
     expect(weeks[0].days[6].actualM / MI).toBeCloseTo(10);
     expect(weeks[0].days[6].activityId).toBe(102);
+  });
+  it("attaches the longest run of the day even when the day was not completed", () => {
+    expect(weeks[0].days[2].completed).toBe(false);
+    expect(weeks[0].days[2].actualRun?.name).toBe("Short");
+    expect(weeks[0].days[6].actualRun?.name).toBe("Long Run");
+    expect(weeks[0].days[1].actualRun).toBeNull();
   });
   it("totals target and actual per week", () => {
     expect(weeks[0].targetM / MI).toBeCloseTo(25);
