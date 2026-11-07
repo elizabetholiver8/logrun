@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { eq } from "drizzle-orm";
+import { CheckinPanel, type CheckinSummary } from "../../components/checkin-panel";
 import { CourseProfileChart } from "../../components/course-profile-chart";
 import { DemoBanner } from "../../components/demo-banner";
 import { PaceZonesTable } from "../../components/pace-zones-table";
@@ -9,6 +10,8 @@ import { PlanCalendarView } from "../../components/plan-calendar-view";
 import { db } from "../../db";
 import { athletes } from "../../db/schema";
 import { loadPlan } from "../../lib/plan-data";
+import { loadCheckins } from "../../lib/checkin-data";
+import { geminiConfigured } from "../../lib/gemini";
 import { getSession, isDemoSession } from "../../lib/session";
 import { formatDistance, localDateKey, unitLabel, unitsFromPreference } from "../../lib/units";
 import { deletePlanAction } from "./actions";
@@ -38,6 +41,14 @@ async function Content() {
   ]);
   if (!view) redirect("/plan/new");
   const demo = isDemoSession(session);
+  const checkins: CheckinSummary[] = (await loadCheckins(view.plan.id)).map((c) => ({
+    id: c.id,
+    weekStart: c.weekStart,
+    createdAt: c.createdAt.toISOString(),
+    appliedAt: c.appliedAt?.toISOString() ?? null,
+    model: c.model,
+    output: c.output,
+  }));
 
   const units = unitsFromPreference(athlete?.measurementPreference);
   const today = localDateKey(new Date());
@@ -73,6 +84,7 @@ async function Content() {
         <PaceZonesTable zones={view.plan.paceZones} goalTimeS={view.plan.goalTimeS} units={units} />
       )}
       {view.plan.course && <CourseProfileChart course={view.plan.course} units={units} />}
+      <CheckinPanel checkins={checkins} demo={demo} configured={geminiConfigured()} />
       <PlanCalendarView view={view} units={units} today={today} />
       <p className="text-xs text-neutral-500">
         A check marks a day where your synced runs reached at least 80 percent of the target. Hover a day for details, or switch on details above. Lifting is a slot, not a prescription.

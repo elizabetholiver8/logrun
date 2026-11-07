@@ -201,3 +201,42 @@ export const planWorkouts = pgTable(
   },
   (t) => [index("plan_workouts_plan_date_idx").on(t.planId, t.date)],
 );
+
+/**
+ * Weekly check-ins: what was sent to the model, what came back, and whether
+ * the suggested adjustment was applied. Kept per plan so the history goes
+ * with the plan and is removed with it.
+ */
+export const planCheckins = pgTable(
+  "plan_checkins",
+  {
+    id: serial("id").primaryKey(),
+    planId: integer("plan_id")
+      .notNull()
+      .references(() => trainingPlans.id, { onDelete: "cascade" }),
+    athleteId: bigint("athlete_id", { mode: "number" })
+      .notNull()
+      .references(() => athletes.id, { onDelete: "cascade" }),
+    /** Monday of the week the check-in reviewed. */
+    weekStart: date("week_start").notNull(),
+    input: jsonb("input").$type<Record<string, unknown>>().notNull(),
+    output: jsonb("output").$type<CheckinOutputJson>().notNull(),
+    model: text("model").notNull(),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("plan_checkins_athlete_created_idx").on(t.athleteId, t.createdAt)],
+);
+
+export type CheckinAdjustmentJson =
+  | { type: "none"; reason: string }
+  | { type: "scale_volume"; percent: number; weeks: number; reason: string }
+  | { type: "swap_workout"; date: string; kind: "easy" | "rest" | "tempo" | "intervals" | "hills"; reason: string }
+  | { type: "adjust_paces"; percent: number; reason: string };
+
+export type CheckinOutputJson = {
+  summary: string;
+  highlights: string[];
+  concerns: string[];
+  adjustment: CheckinAdjustmentJson;
+};

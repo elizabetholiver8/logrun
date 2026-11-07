@@ -26,4 +26,11 @@ export const env = {
   get SESSION_SECRET() {
     return required("SESSION_SECRET");
   },
+  get GEMINI_API_KEY() {
+    return required("GEMINI_API_KEY");
+  },
+  /** Optional: which Gemini model answers check-ins. */
+  get GEMINI_MODEL() {
+    return process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+  },
 };

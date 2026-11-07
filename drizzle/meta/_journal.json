@@ -29,6 +29,13 @@
       "when": 1793975789352,
       "tag": "0003_plan_paces_course",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794010669994,
+      "tag": "0004_plan_checkins",
+      "breakpoints": true
     }
   ]
 }

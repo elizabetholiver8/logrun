@@ -42,3 +42,12 @@ Developer tooling, not shipped.
   ```
   npx tsx scripts/demo-seed.ts --file demo-export.json --polylines 20 --tz America/New_York
   ```
+
+- `fake-gemini.mjs`: stands in for Gemini locally. Returns a fixed valid
+  check-in, or junk with `FAKE_GEMINI_MODE=junk`, or a 429 with
+  `FAKE_GEMINI_MODE=quota`. Run the app with
+  `GEMINI_API_BASE=http://localhost:4568/v1beta GEMINI_API_KEY=x`.
+
+  ```
+  node scripts/fake-gemini.mjs
+  ```

@@ -28,6 +28,14 @@ with sample data, so no account is needed to look around.
 - **Progress tracking.** Each planned day is matched against synced runs at
   read time, so the calendar reflects what was actually done, including runs
   that arrive later by webhook.
+- **Weekly check-in.** A coach's review of last week against the plan,
+  written by Gemini from a compact summary the server builds: planned and
+  actual distance and pace per day, completion, a four-week trend, and the
+  days ahead. The model answers in a fixed JSON shape and may pick one
+  adjustment from a menu: scale next week's volume, shift every target pace,
+  or swap one upcoming workout. The answer is validated server side, stored,
+  and applied only when the athlete clicks Apply; the rules engine makes the
+  change, the model never edits the plan. One check-in per athlete per day.
 - **Demo mode.** A fixed athlete seeded from an anonymized, date-shifted
   export. The session carries a demo flag; the plan builder runs the real
   generator and returns a preview instead of saving, and every other write
@@ -59,6 +67,9 @@ Browser ── Next.js App Router (React server components, server actions)
 - `src/lib/session.ts`: HMAC-signed stateless sessions. Nothing is stored
   server side.
 - `src/lib/crypto.ts`: AES-256-GCM for tokens, keyed from the session secret.
+- `src/lib/checkin.ts`: the check-in prompt, response validation and the
+  adjustment-to-row-updates logic, all pure. `gemini.ts` is the fetch
+  wrapper; `checkin-data.ts` the storage and cooldown.
 
 Sessions and tokens never leave the server. The only client-side JavaScript
 is the charts, the map, the sync button and the plan form.
@@ -88,6 +99,8 @@ npm run dev
 | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` | From your Strava API application. |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | Any string; Strava echoes it when registering the webhook. |
 | `SESSION_SECRET` | 32 random bytes, for example `openssl rand -base64 32`. Signs sessions and derives the token encryption key. |
+| `GEMINI_API_KEY` | From aistudio.google.com. Enables the weekly check-in; without it the panel says so and nothing else changes. |
+| `GEMINI_MODEL` | Optional. Defaults to `gemini-3.5-flash-lite`. |
 
 Strava needs the app's host as its Authorization Callback Domain
 (`localhost` for development). Webhooks need a public URL, so they are
