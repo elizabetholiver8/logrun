@@ -11,7 +11,7 @@ export function PlanStrip({ view, units, today }: { view: PlanView | null; units
     return (
       <section className="flex items-center justify-between rounded border border-dashed border-neutral-300 p-4 text-sm">
         <span className="text-neutral-600">No training plan yet.</span>
-        <Link href="/plan/new" className="rounded bg-neutral-900 px-3 py-1 text-white hover:bg-neutral-700">Build a plan</Link>
+        <Link href="/plan/new" className="rounded border bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50">Build a plan</Link>
       </section>
     );
   }

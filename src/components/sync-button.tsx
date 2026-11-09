@@ -51,7 +51,7 @@ export function SyncButton({ backfillComplete }: { backfillComplete: boolean }) 
         type="button"
         onClick={run}
         disabled={state === "running"}
-        className="rounded border border-neutral-300 px-3 py-1 text-sm hover:bg-neutral-100 disabled:opacity-50"
+        className="rounded border bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
       >
         {state === "running" ? "Syncing…" : backfillComplete ? "Sync new runs" : "Sync history"}
       </button>

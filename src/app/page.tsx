@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getSession, isDemoSession } from "../lib/session";
 import { SITE } from "../lib/site";
+import { BrandLink } from "@/components/brand-link";
 
 const FEATURES = [
   { title: "Strava sync", body: "OAuth connect, paged history backfill, then webhooks keep new, edited and deleted runs current without polling." },
@@ -25,12 +26,12 @@ export default function Home({ searchParams }: { searchParams: Promise<{ error?:
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-12 p-6 md:p-10">
       <header className="flex items-baseline justify-between">
-        <span className="text-2xl font-semibold">logrun</span>
+        <BrandLink />
         <a href={SITE.repo} className="text-sm text-neutral-500 hover:underline" target="_blank" rel="noreferrer">Source on GitHub</a>
       </header>
 
       <section className="flex flex-col gap-4">
-        <h1 className="text-3xl font-semibold leading-tight md:text-4xl">
+        <h1 className="text-3xl text-blue-600 font-semibold leading-tight md:text-4xl">
           Run tracking and training plans, built on your Strava history.
         </h1>
         <p className="max-w-xl text-neutral-600">
@@ -43,7 +44,7 @@ export default function Home({ searchParams }: { searchParams: Promise<{ error?:
 
       <section className="grid gap-6 sm:grid-cols-2">
         {FEATURES.map((f) => (
-          <div key={f.title} className="rounded border border-neutral-200 p-4">
+          <div key={f.title} className="text-blue-600 rounded border border-blue-600 p-4">
             <h2 className="mb-1 font-medium">{f.title}</h2>
             <p className="text-sm text-neutral-600">{f.body}</p>
           </div>
@@ -83,7 +84,7 @@ async function Entry({ searchParams }: { searchParams: Promise<{ error?: string 
     const demo = isDemoSession(session);
     return (
       <div className="flex flex-wrap items-center gap-4">
-        <Link href="/dashboard" className="rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700">
+        <Link href="/dashboard" className="rounded border bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
           Open dashboard
         </Link>
         <span className="text-sm text-neutral-500">{demo ? "You are in the demo." : "You are signed in."}</span>

@@ -12,12 +12,13 @@ import { eq } from "drizzle-orm";
 import {
   formatDistance, formatDuration, formatPace, paceSecondsPer, unitLabel, unitsFromPreference,
 } from "../../../lib/units";
+import { BrandLink } from "@/components/brand-link";
 
 export default function RunPage({ params }: { params: Promise<{ id: string }> }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 p-6 md:p-8">
       <header className="flex items-baseline gap-4">
-        <Link href="/" className="text-2xl font-semibold">logrun</Link>
+        <BrandLink />
         <Link href="/dashboard" className="text-sm text-neutral-500 hover:underline">Dashboard</Link>
       </header>
       <Suspense fallback={<p className="text-neutral-400">Loading…</p>}>

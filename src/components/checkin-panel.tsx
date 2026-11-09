@@ -36,7 +36,7 @@ export function CheckinPanel({ checkins, demo, configured }: { checkins: Checkin
           </p>
         </div>
         <form action={runAction}>
-          <button type="submit" className={buttonClass} disabled={running || demo || !configured} title={demo ? "Precomputed in the demo" : !configured ? "GEMINI_API_KEY is not set" : undefined}>
+          <button type="submit" className="rounded border bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50" disabled={running || demo || !configured} title={demo ? "Precomputed in the demo" : !configured ? "GEMINI_API_KEY is not set" : undefined}>
             {running ? "Thinking…" : latest ? "Run again" : "Run check-in"}
           </button>
         </form>

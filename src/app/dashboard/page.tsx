@@ -13,18 +13,34 @@ import {
   formatDistance, formatDuration, formatHours, formatPace, localDateKey, paceSecondsPer,
   unitLabel, unitsFromPreference,
 } from "../../lib/units";
+import { BrandLink } from "@/components/brand-link";
+import { eq } from "drizzle-orm";
+import { db } from "../../db";
+import { athletes } from "../../db/schema";
 
 export default function DashboardPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 p-6 md:p-8">
-      <header className="flex items-baseline justify-between">
-        <Link href="/" className="text-2xl font-semibold">logrun</Link>
-      </header>
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <BrandLink />
+        <Suspense fallback={null}>
+          <HeaderControls />
+        </Suspense>
+</header>
       <Suspense fallback={<p className="text-neutral-400">Loading…</p>}>
         <Dashboard />
       </Suspense>
+      
     </main>
   );
+}
+async function HeaderControls() {
+  const session = await getSession();
+  if (!session) return null;
+  const athlete = await db.query.athletes.findFirst({ where: eq(athletes.id, session.athleteId) });
+  if (!athlete) return null;
+  const name = `${athlete.firstName ?? ""} ${athlete.lastName ?? ""}`.trim() || String(athlete.id);
+  return <AccountControls name={name} backfillComplete={Boolean(athlete.backfillCompletedAt)} demo={isDemoSession(session)} />;
 }
 
 async function Dashboard() {
@@ -43,7 +59,7 @@ async function Dashboard() {
   return (
     <>
       {demo && <DemoBanner />}
-      <AccountControls name={name} backfillComplete={Boolean(athlete.backfillCompletedAt)} demo={demo} />
+      
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatTile label="Runs, 30 days" value={String(last30.runs)} />

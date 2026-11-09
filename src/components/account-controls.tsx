@@ -14,7 +14,7 @@ export function AccountControls({ name, backfillComplete, demo = false }: { name
         <SyncButton backfillComplete={backfillComplete} />
       )}
       <form action="/auth/logout" method="post">
-        <button type="submit" className="rounded border border-neutral-300 px-3 py-1 hover:bg-neutral-100">
+        <button type="submit" className="rounded border bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
           {demo ? "Leave demo" : "Log out"}
         </button>
       </form>

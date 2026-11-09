@@ -220,7 +220,7 @@ export function PlanForm({ minDate, today, units, demo = false }: { minDate: str
             <button
               type="submit"
               disabled={pending || tooFew}
-              className="rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 disabled:opacity-50"
+              className="rounded border bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {pending ? "Building plan…" : demo ? "Preview plan" : "Build plan"}
             </button>
