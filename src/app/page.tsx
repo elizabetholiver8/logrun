@@ -1,14 +1,11 @@
 import Image from "next/image";
-import Link from "next/link";
 import { Suspense } from "react";
 import { getSession, isDemoSession } from "../lib/session";
-import { SITE } from "../lib/site";
-import { BrandLink } from "@/components/brand-link";
 
 const FEATURES = [
   { title: "Strava sync", body: "OAuth connect, paged history backfill, then webhooks keep new, edited and deleted runs current without polling." },
   { title: "Dashboard", body: "Thirty-day totals, weekly distance and pace charts, and a route map for every run with GPS." },
-  { title: "Training plans", body: "A rules engine builds a plan to a race date from your real baseline: capped weekly ramps, cutback weeks, a taper, target paces from your goal time, hill sessions sized to the race course, and lifting slots that stay clear of the long run. Download it as a calendar or CSV." },
+  { title: "Training plans", body: "A rules engine builds a plan for a race using your real baseline: capped weekly ramps, recovery weeks, a taper, target paces from your goal time, hill sessions sized to the race course, and lifting slots that stay clear of the long run. Download it as a calendar or CSV." },
   { title: "Progress tracking", body: "Each planned day is matched against synced runs, so the calendar shows what you actually did." },
 ];
 
@@ -25,10 +22,10 @@ const ERRORS: Record<string, string> = {
 export default function Home({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-12 p-6 md:p-10">
-      <header className="flex items-baseline justify-between">
+      {/* <header className="flex items-baseline justify-between">
         <BrandLink />
         <a href={SITE.repo} className="text-sm text-neutral-500 hover:underline" target="_blank" rel="noreferrer">Source on GitHub</a>
-      </header>
+      </header> */}
 
       <section className="flex flex-col gap-4">
         <h1 className="text-3xl text-blue-600 font-semibold leading-tight md:text-4xl">
@@ -52,17 +49,17 @@ export default function Home({ searchParams }: { searchParams: Promise<{ error?:
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">About me</h2>
-        <p className="text-lg font-medium">{SITE.name}</p>
-        <p className="max-w-xl text-neutral-600">{SITE.bio}</p>
-        <div className="flex flex-wrap gap-3 pt-1">
+        {/* <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">About me</h2> */}
+        {/* <p className="text-lg font-medium">{SITE.name}</p>
+        <p className="max-w-xl text-neutral-600">{SITE.bio}</p> */}
+        {/* <div className="flex flex-wrap gap-3 pt-1">
           <a href={SITE.linkedin} target="_blank" rel="noreferrer" className="rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700">
             LinkedIn
           </a>
           <a href={SITE.github} target="_blank" rel="noreferrer" className="rounded border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100">
             GitHub
           </a>
-        </div>
+        </div> */}
       </section>
 
       <footer className="border-t border-neutral-200 pt-4 text-sm text-neutral-500">
@@ -84,9 +81,9 @@ async function Entry({ searchParams }: { searchParams: Promise<{ error?: string 
     const demo = isDemoSession(session);
     return (
       <div className="flex flex-wrap items-center gap-4">
-        <Link href="/dashboard" className="rounded border bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+        {/* <Link href="/dashboard" className="rounded border bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
           Open dashboard
-        </Link>
+        </Link> */}
         <span className="text-sm text-neutral-500">{demo ? "You are in the demo." : "You are signed in."}</span>
       </div>
     );

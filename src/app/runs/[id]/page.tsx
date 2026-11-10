@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { DemoBanner } from "../../../components/demo-banner";
@@ -12,15 +11,14 @@ import { eq } from "drizzle-orm";
 import {
   formatDistance, formatDuration, formatPace, paceSecondsPer, unitLabel, unitsFromPreference,
 } from "../../../lib/units";
-import { BrandLink } from "@/components/brand-link";
 
 export default function RunPage({ params }: { params: Promise<{ id: string }> }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 p-6 md:p-8">
-      <header className="flex items-baseline gap-4">
+      {/* <header className="flex items-baseline gap-4">
         <BrandLink />
         <Link href="/dashboard" className="text-sm text-neutral-500 hover:underline">Dashboard</Link>
-      </header>
+      </header> */}
       <Suspense fallback={<p className="text-neutral-400">Loading…</p>}>
         <Run params={params} />
       </Suspense>

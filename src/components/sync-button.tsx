@@ -46,7 +46,7 @@ export function SyncButton({ backfillComplete }: { backfillComplete: boolean }) 
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center justify-right gap-3">
       <button
         type="button"
         onClick={run}
@@ -55,7 +55,7 @@ export function SyncButton({ backfillComplete }: { backfillComplete: boolean }) 
       >
         {state === "running" ? "Syncing…" : backfillComplete ? "Sync new runs" : "Sync history"}
       </button>
-      {message && <span className="text-sm text-neutral-600">{message}</span>}
+      {message && <span className="text-sm text-white-600">{message}</span>}
     </div>
   );
 }

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { DemoBanner } from "../../../components/demo-banner";
@@ -10,15 +9,15 @@ import { formatDistance, localDateKey, unitLabel, unitsFromPreference } from "..
 import { db } from "../../../db";
 import { athletes } from "../../../db/schema";
 import { eq } from "drizzle-orm";
-import { BrandLink } from "../../../components/brand-link";
+
 
 export default function NewPlanPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 p-6 md:p-8">
-      <header className="flex items-baseline gap-4">
+      {/* <header className="flex items-baseline gap-4">
         <BrandLink />
         <Link href="/dashboard" className="text-sm text-neutral-500 hover:underline">Dashboard</Link>
-      </header>
+      </header> */}
       <h1 className="text-xl font-semibold">New training plan</h1>
       <Suspense fallback={<p className="text-neutral-400">Loading…</p>}>
         <Content />

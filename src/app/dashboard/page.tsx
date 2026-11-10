@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { AccountControls } from "../../components/account-controls";
 import { DemoBanner } from "../../components/demo-banner";
 import { PlanStrip } from "../../components/plan-strip";
 import { StatTile } from "../../components/stat-tile";
+import { SyncButton } from "../../components/sync-button";
 import { WeeklyCharts } from "../../components/weekly-charts";
 import { loadDashboard } from "../../lib/dashboard-data";
 import { loadPlan } from "../../lib/plan-data";
@@ -13,34 +13,15 @@ import {
   formatDistance, formatDuration, formatHours, formatPace, localDateKey, paceSecondsPer,
   unitLabel, unitsFromPreference,
 } from "../../lib/units";
-import { BrandLink } from "@/components/brand-link";
-import { eq } from "drizzle-orm";
-import { db } from "../../db";
-import { athletes } from "../../db/schema";
 
 export default function DashboardPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 p-6 md:p-8">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <BrandLink />
-        <Suspense fallback={null}>
-          <HeaderControls />
-        </Suspense>
-</header>
       <Suspense fallback={<p className="text-neutral-400">Loading…</p>}>
         <Dashboard />
       </Suspense>
-      
     </main>
   );
-}
-async function HeaderControls() {
-  const session = await getSession();
-  if (!session) return null;
-  const athlete = await db.query.athletes.findFirst({ where: eq(athletes.id, session.athleteId) });
-  if (!athlete) return null;
-  const name = `${athlete.firstName ?? ""} ${athlete.lastName ?? ""}`.trim() || String(athlete.id);
-  return <AccountControls name={name} backfillComplete={Boolean(athlete.backfillCompletedAt)} demo={isDemoSession(session)} />;
 }
 
 async function Dashboard() {
@@ -53,13 +34,20 @@ async function Dashboard() {
   const { athlete, last30, thisWeek, weekly, recent } = data;
   const units = unitsFromPreference(athlete.measurementPreference);
   const u = unitLabel(units);
-  const name = `${athlete.firstName ?? ""} ${athlete.lastName ?? ""}`.trim() || String(athlete.id);
   const demo = isDemoSession(session);
 
   return (
     <>
       {demo && <DemoBanner />}
-      
+      <div className="flex items-center gap-4 text-sm">
+        {demo ? (
+          <button type="button" disabled className="rounded border bg-blue-600 text-white px-3 py-1 opacity-50">
+            Sync new runs
+          </button>
+        ) : (
+          <SyncButton backfillComplete={Boolean(athlete.backfillCompletedAt)} />
+        )}
+      </div>
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatTile label="Runs, 30 days" value={String(last30.runs)} />

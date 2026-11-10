@@ -15,17 +15,16 @@ import { geminiConfigured } from "../../lib/gemini";
 import { getSession, isDemoSession } from "../../lib/session";
 import { formatDistance, localDateKey, unitLabel, unitsFromPreference } from "../../lib/units";
 import { deletePlanAction } from "./actions";
-import { BrandLink } from "@/components/brand-link";
 
 const GOAL_LABEL = { "5k": "5K", "10k": "10K", half: "Half marathon", marathon: "Marathon" } as const;
 
 export default function PlanPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 p-6 md:p-8">
-      <header className="flex items-baseline justify-between gap-4">
+      {/* <header className="flex items-baseline justify-between gap-4">
         <BrandLink />
         <Link href="/dashboard" className="inline-block rounded border bg-blue-600 px-2 py-1 text-2xl text-white font-semibold hover:bg-blue-700">dashboard</Link>
-      </header>
+      </header> */}
       <Suspense fallback={<p className="text-neutral-400">Loading…</p>}>
         <Content />
       </Suspense>
